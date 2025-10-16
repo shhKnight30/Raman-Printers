@@ -1,0 +1,56 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ENUMS to define fixed sets of values for status fields.
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID // User claims they have paid
+  VERIFIED // Admin has confirmed the payment
+}
+
+// User model to store unique customer information
+model User {
+  id         String   @id @default(cuid())
+  phone      String   @unique // A user is uniquely identified by their phone number
+  tokenId    String   @unique @default(cuid()) // Unique token for the user to track orders
+  isVerified Boolean  @default(false) // Admin verifies new users via WhatsApp
+  orders     Order[] // A user can have many orders
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// Order model to store details of each print job
+model Order {
+  id            String        @id @default(cuid())
+  name          String // Name for this specific order
+  phone         String // Phone number for direct access
+  pages         Int // Total pages, calculated from all files
+  tokenId       String // Token ID for tracking
+  copies        Int
+  notes         String? // Special instructions from the user
+  totalAmount   Float
+  status        OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+  files         Json // Storing a list of file names or paths as a JSON array
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relation to the User model
+  user    User   @relation(fields: [userId], references: [id])
+  userId  String
+}

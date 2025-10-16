@@ -1,36 +1,163 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AkPrints - Printing Service Application
+
+A modern Next.js web application for a printing service that allows users to place and track orders, with an admin panel for order management.
+
+## Features
+
+### User Features
+- **Hero Section**: Welcoming landing page with call-to-action buttons
+- **Order Placement**: Complete form for submitting print jobs with file upload
+- **Order Tracking**: Track existing orders using phone number and token ID
+- **Responsive Design**: Mobile-friendly interface with Tailwind CSS
+
+### Admin Features
+- **Admin Login**: Secure authentication for administrators
+- **Order Management**: View and update order statuses and payment statuses
+- **User Verification**: Manage user verification queue via WhatsApp
+- **Dashboard**: Comprehensive overview of all orders and users
+
+## Tech Stack
+
+- **Frontend**: Next.js 14 with App Router, TypeScript, Tailwind CSS
+- **UI Components**: shadcn/ui component library
+- **Database**: SQLite with Prisma ORM
+- **Styling**: Tailwind CSS with custom background styling
+
+## Project Structure
+
+```
+ak-prints/
+├── prisma/
+│   └── schema.prisma          # Database schema
+├── public/
+│   └── background.jpg         # Background image (placeholder)
+├── src/
+│   ├── app/
+│   │   ├── admin/
+│   │   │   ├── dashboard/     # Admin dashboard
+│   │   │   └── login/         # Admin login
+│   │   ├── api/
+│   │   │   └── orders/        # API routes for orders
+│   │   ├── layout.tsx         # Root layout
+│   │   └── page.tsx           # Main landing page
+│   ├── components/
+│   │   ├── user/              # User-facing components
+│   │   │   ├── HeroSection.tsx
+│   │   │   ├── Navbar.tsx
+│   │   │   ├── OrderForm.tsx
+│   │   │   └── TrackOrder.tsx
+│   │   └── ui/                # shadcn/ui components
+│   └── lib/
+│       ├── prisma.ts          # Prisma client
+│       └── utils.ts           # Utility functions
+```
+
+## Database Schema
+
+### User Model
+- `id`: Unique identifier
+- `phone`: Phone number (unique)
+- `tokenId`: Unique token for order tracking
+- `isVerified`: Admin verification status
+- `orders`: Related orders
+
+### Order Model
+- `id`: Unique identifier
+- `name`: Order name
+- `pages`: Total pages (calculated)
+- `copies`: Number of copies
+- `notes`: Special instructions
+- `totalAmount`: Total cost
+- `status`: Order status (PENDING, COMPLETED, CANCELLED)
+- `paymentStatus`: Payment status (PENDING, PAID, VERIFIED)
+- `files`: JSON array of file URLs
+- `userId`: Reference to user
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js (v18 or later)
+- npm, pnpm, or yarn
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### Installation
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. **Clone and setup**:
+   ```bash
+   cd ak-prints
+   npm install
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+2. **Database setup**:
+   ```bash
+   npx prisma migrate dev --name init
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. **Add background image**:
+   - Replace `public/background.jpg` with your preferred background image
 
-## Learn More
+4. **Start development server**:
+   ```bash
+   npm run dev
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+5. **Access the application**:
+   - User interface: http://localhost:3000
+   - Admin login: http://localhost:3000/admin/login
+   - Admin dashboard: http://localhost:3000/admin/dashboard
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Demo Credentials
+- Admin Username: `admin`
+- Admin Password: `admin123`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API Endpoints
 
-## Deploy on Vercel
+### Orders
+- `POST /api/orders` - Create a new order
+- `GET /api/orders?phone=xxx&tokenId=xxx` - Get user orders
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## TODO Items for Production
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### File Upload
+- Implement proper file upload handling (Vercel Blob, AWS S3)
+- Add PDF page counting using pdf-lib
+- File validation and size limits
+
+### Authentication
+- Implement proper admin authentication with JWT/sessions
+- Add middleware for admin route protection
+- Environment variables for admin credentials
+
+### Payment Integration
+- Integrate with payment gateways (Razorpay, Stripe)
+- UPI QR code display
+- Payment verification system
+
+### WhatsApp Integration
+- WhatsApp verification links for new users
+- Order status notifications via WhatsApp
+
+### Additional Features
+- Order cancellation functionality
+- File preview and download
+- Email notifications
+- Order history pagination
+- Search and filtering in admin dashboard
+
+## Development Notes
+
+- The application uses simulated data for demonstration
+- File uploads are currently handled as placeholders
+- Admin authentication is basic (hardcoded credentials)
+- Database operations are ready but need real data integration
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
