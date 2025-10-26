@@ -14,6 +14,11 @@ export const metadata: Metadata = {
   description: "High-quality printing services at your fingertips.",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -22,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="!scroll-smooth">
       <body
-        className={`${inter.className} bg-cover bg-fixed bg-center`}
+        className={`${inter.className} bg-cover bg-center`}
         style={{ backgroundImage: "url('/backgrounds/default.jpg')" }}
       >
         <main className="min-h-screen bg-white bg-opacity-90 text-gray-900">
