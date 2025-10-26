@@ -4,6 +4,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { 
+  createErrorResponse, 
+  ErrorCode, 
+  parseRequestBody, 
+  validatePhone,
+  handlePrismaError 
+} from '@/lib/errorHandler';
 
 /**
  * Issues or rotates a token for a phone number
@@ -12,46 +19,111 @@ import prisma from '@/lib/prisma';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { phone } = await request.json();
+    // Parse request body with error handling
+    const parseResult = await parseRequestBody(request);
+    if (!parseResult.success) {
+      return parseResult.error!;
+    }
 
-    if (!phone || !/^\d{10}$/.test(phone)) {
-      return NextResponse.json(
-        { error: 'Valid 10-digit phone number is required' },
-        { status: 400 }
+    const { phone } = parseResult.data!;
+
+    // Validate phone number
+    const phoneValidation = validatePhone(phone);
+    if (!phoneValidation.valid) {
+      return createErrorResponse(
+        phoneValidation.error!,
+        ErrorCode.PHONE_INVALID,
+        400,
+        { field: 'phone' }
       );
     }
 
     // Check if user exists
-    const existingUser = await prisma.user.findUnique({
-      where: { phone }
-    });
+    let existingUser;
+    try {
+      existingUser = await prisma.user.findUnique({
+        where: { phone }
+      });
+    } catch (error) {
+      return handlePrismaError(error);
+    }
 
     let tokenId: string;
     let isNewUser = false;
 
     if (existingUser) {
-      // Rotate existing token
-      tokenId = `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Rotate existing token with retry logic for collision
+      let attempts = 0;
+      const maxAttempts = 3;
       
-      await prisma.user.update({
-        where: { phone },
-        data: { 
-          tokenId,
-          updatedAt: new Date()
+      while (attempts < maxAttempts) {
+        try {
+          tokenId = `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          await prisma.user.update({
+            where: { phone },
+            data: { 
+              tokenId,
+              updatedAt: new Date()
+            }
+          });
+          break; // Success, exit retry loop
+        } catch (error) {
+          attempts++;
+          if (error.code === 'P2002' && attempts < maxAttempts) {
+            // Unique constraint violation, retry with new token
+            console.warn(`Token collision detected, retrying... (attempt ${attempts})`);
+            continue;
+          }
+          return handlePrismaError(error);
         }
-      });
+      }
+      
+      if (attempts >= maxAttempts) {
+        return createErrorResponse(
+          'Failed to generate unique token after multiple attempts',
+          ErrorCode.SERVER,
+          500,
+          { suggestion: 'Please try again later' }
+        );
+      }
     } else {
       // Create new user with token
-      tokenId = `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      isNewUser = true;
+      let attempts = 0;
+      const maxAttempts = 3;
       
-      await prisma.user.create({
-        data: {
-          phone,
-          tokenId,
-          isVerified: false
+      while (attempts < maxAttempts) {
+        try {
+          tokenId = `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          isNewUser = true;
+          
+          await prisma.user.create({
+            data: {
+              phone,
+              tokenId,
+              isVerified: false
+            }
+          });
+          break; // Success, exit retry loop
+        } catch (error) {
+          attempts++;
+          if (error.code === 'P2002' && attempts < maxAttempts) {
+            // Unique constraint violation, retry with new token
+            console.warn(`Token collision detected, retrying... (attempt ${attempts})`);
+            continue;
+          }
+          return handlePrismaError(error);
         }
-      });
+      }
+      
+      if (attempts >= maxAttempts) {
+        return createErrorResponse(
+          'Failed to generate unique token after multiple attempts',
+          ErrorCode.SERVER,
+          500,
+          { suggestion: 'Please try again later' }
+        );
+      }
     }
 
     return NextResponse.json({
@@ -65,9 +137,11 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Token creation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create/rotate token' },
-      { status: 500 }
+    return createErrorResponse(
+      'Failed to create/rotate token',
+      ErrorCode.SERVER,
+      500,
+      { suggestion: 'Please try again later' }
     );
   }
 }

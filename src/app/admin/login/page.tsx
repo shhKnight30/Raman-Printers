@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Eye, EyeOff, Lock, User } from "lucide-react";
+import { showError, showSuccess, showLoading, updateToSuccess, updateToError, ToastMessages } from "@/lib/toast";
 
 /**
  * AdminLogin component with enhanced security features
@@ -35,10 +36,13 @@ const AdminLogin = () => {
 
     // Basic validation
     if (!username.trim() || !password.trim()) {
+      showError("Please fill in all fields");
       setError("Please fill in all fields");
       setIsLoading(false);
       return;
     }
+
+    const loadingToast = showLoading("Signing in...", "Please wait while we verify your credentials");
 
     // TODO: Implement actual authentication logic with JWT/sessions
     // For now, we'll simulate login with hardcoded credentials
@@ -46,17 +50,23 @@ const AdminLogin = () => {
       if (username === "admin" && password === "admin123") {
         // TODO: Set secure authentication cookie/token
         // TODO: Log successful login attempt
-        alert("Login successful! Redirecting to dashboard...");
-        window.location.href = "/admin/dashboard";
+        updateToSuccess(loadingToast, ToastMessages.LOGIN_SUCCESS, "Redirecting to dashboard...");
+        setTimeout(() => {
+          window.location.href = "/admin/dashboard";
+        }, 1000);
       } else {
         const newAttempts = loginAttempts + 1;
         setLoginAttempts(newAttempts);
         
         if (newAttempts >= 3) {
-          setError("Too many failed attempts. Please try again later.");
+          const errorMsg = "Too many failed attempts. Please try again later.";
+          updateToError(loadingToast, errorMsg);
+          setError(errorMsg);
           // TODO: Implement account lockout mechanism
         } else {
-          setError(`Invalid credentials. ${3 - newAttempts} attempts remaining.`);
+          const errorMsg = `Invalid credentials. ${3 - newAttempts} attempts remaining.`;
+          updateToError(loadingToast, errorMsg);
+          setError(errorMsg);
         }
       }
       setIsLoading(false);

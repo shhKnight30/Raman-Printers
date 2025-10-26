@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Eye, Trash2, QrCode, CreditCard, CheckCircle, Copy, MessageCircle } from "lucide-react";
+import { showError, showSuccess, showLoading, updateToSuccess, updateToError, ToastMessages } from "@/lib/toast";
 
 interface OrderData {
   name: string;
@@ -166,7 +167,8 @@ export default function PaymentPage() {
 
     } catch (error) {
       console.error('Order creation error:', error);
-      alert(error instanceof Error ? error.message : 'Order creation failed');
+      const errorMessage = error instanceof Error ? error.message : 'Order creation failed';
+      showError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -526,7 +528,7 @@ export default function PaymentPage() {
                     size="sm"
                     onClick={() => {
                       navigator.clipboard.writeText(userTokenId || '');
-                      alert('Token ID copied to clipboard!');
+                      showSuccess('Token ID copied to clipboard!');
                     }}
                     className="border-gray-300"
                   >

@@ -4,6 +4,11 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { 
+  createErrorResponse, 
+  ErrorCode, 
+  parseRequestBody 
+} from '@/lib/errorHandler';
 
 const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'admin123';
 const SESSION_COOKIE_NAME = 'admin-session';
@@ -15,31 +20,52 @@ const SESSION_COOKIE_NAME = 'admin-session';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { passcode } = await request.json();
+    // Parse request body with error handling
+    const parseResult = await parseRequestBody(request);
+    if (!parseResult.success) {
+      return parseResult.error!;
+    }
 
-    if (!passcode) {
-      return NextResponse.json(
-        { error: 'Passcode is required' },
-        { status: 400 }
+    const { passcode } = parseResult.data!;
+
+    // Validate passcode
+    if (!passcode || typeof passcode !== 'string') {
+      return createErrorResponse(
+        'Passcode is required',
+        ErrorCode.MISSING_FIELDS,
+        400,
+        { field: 'passcode' }
       );
     }
 
-    if (passcode !== ADMIN_PASSCODE) {
-      return NextResponse.json(
-        { error: 'Invalid passcode' },
-        { status: 401 }
+    if (passcode.trim() !== ADMIN_PASSCODE) {
+      return createErrorResponse(
+        'Invalid passcode',
+        ErrorCode.AUTH,
+        401,
+        { suggestion: 'Please check your passcode and try again' }
       );
     }
 
-    // Set HTTP-only cookie
-    const cookieStore = cookies();
-    cookieStore.set(SESSION_COOKIE_NAME, 'authenticated', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24, // 24 hours
-      path: '/'
-    });
+    // Set HTTP-only cookie with error handling
+    try {
+      const cookieStore = cookies();
+      cookieStore.set(SESSION_COOKIE_NAME, 'authenticated', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24, // 24 hours
+        path: '/'
+      });
+    } catch (cookieError) {
+      console.error('Failed to set session cookie:', cookieError);
+      return createErrorResponse(
+        'Failed to create session',
+        ErrorCode.SERVER,
+        500,
+        { suggestion: 'Please try again later' }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -48,9 +74,11 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Admin login error:', error);
-    return NextResponse.json(
-      { error: 'Login failed' },
-      { status: 500 }
+    return createErrorResponse(
+      'Login failed',
+      ErrorCode.SERVER,
+      500,
+      { suggestion: 'Please try again later' }
     );
   }
 }

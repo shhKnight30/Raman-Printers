@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import FileUpload from "@/components/ui/file-upload";
 import WhatsAppVerification from "@/components/user/WhatsAppVerification";
+import { showError, showSuccess, showLoading, updateToSuccess, updateToError, ToastMessages } from "@/lib/toast";
 
 /**
  * Price per page configuration
@@ -128,11 +129,13 @@ const OrderForm = () => {
   const handleOrderSubmit = async () => {
     const validation = validateForm();
     if (!validation.valid) {
+      showError(validation.error!);
       updateFormState({ error: validation.error! });
       return;
     }
 
     updateFormState({ isLoading: true, error: null });
+    const loadingToast = showLoading("Uploading files...", "Please wait while we process your files");
 
     try {
       // First upload files
@@ -155,7 +158,17 @@ const OrderForm = () => {
       if (!uploadResponse.ok) {
         const uploadError = await uploadResponse.json();
         console.error('Upload error:', uploadError);
-        throw new Error(uploadError.error || 'File upload failed');
+        
+        // Show specific error message from API
+        const errorMessage = uploadError.error || 'File upload failed';
+        const suggestion = uploadError.suggestion ? `\n\n${uploadError.suggestion}` : '';
+        
+        updateToError(loadingToast, errorMessage, suggestion);
+        updateFormState({ 
+          error: errorMessage,
+          isLoading: false 
+        });
+        return;
       }
 
       const uploadResult = await uploadResponse.json();
@@ -175,12 +188,19 @@ const OrderForm = () => {
 
       localStorage.setItem('orderData', JSON.stringify(orderData));
       
-      // Navigate to payment page
-      router.push('/payment');
+      // Update loading toast to success and navigate to payment page
+      updateToSuccess(loadingToast, "Files uploaded successfully!", "Redirecting to payment page...");
+      
+      // Small delay to show success message
+      setTimeout(() => {
+        router.push('/payment');
+      }, 1000);
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'File upload failed';
+      updateToError(loadingToast, errorMessage);
       updateFormState({ 
-        error: error instanceof Error ? error.message : 'File upload failed',
+        error: errorMessage,
         isLoading: false 
       });
     }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { showError, showSuccess, showLoading, updateToSuccess, updateToError, ToastMessages } from "@/lib/toast";
 
 // Simulated order data type. This should match your Prisma schema.
 type Order = {
@@ -28,25 +29,38 @@ const TrackOrder = () => {
   
   const handleTrack = async () => {
     if (!phone.trim() || !tokenId.trim()) {
-      alert('Please enter both phone number and token ID');
+      showError('Please enter both phone number and token ID');
       return;
     }
 
     setIsLoading(true);
+    const loadingToast = showLoading("Searching for orders...", "Please wait while we fetch your orders");
     
     try {
       const response = await fetch(`/api/orders?phone=${phone}&tokenId=${tokenId}&page=1`);
       
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to fetch orders');
+        const errorMessage = error.error || 'Failed to fetch orders';
+        const suggestion = error.suggestion ? `\n\n${error.suggestion}` : '';
+        
+        updateToError(loadingToast, errorMessage, suggestion);
+        setOrders([]);
+        return;
       }
 
       const data = await response.json();
       setOrders(data.orders || []);
+      
+      if (data.orders && data.orders.length > 0) {
+        updateToSuccess(loadingToast, `Found ${data.orders.length} order(s)`, "Your orders are displayed below");
+      } else {
+        updateToSuccess(loadingToast, "No orders found", "Please check your phone number and Token ID");
+      }
     } catch (error) {
       console.error('Error fetching orders:', error);
-      alert(error instanceof Error ? error.message : 'Failed to fetch orders');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch orders';
+      updateToError(loadingToast, errorMessage);
       setOrders([]);
     } finally {
       setIsLoading(false);

@@ -5,12 +5,13 @@
  */
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ARPrints - Your Printing Solution",
+  title: "AkPrints - Your Printing Solution",
   description: "High-quality printing services at your fingertips.",
 };
 
@@ -33,6 +34,13 @@ export default function RootLayout({
         <main className="min-h-screen bg-white bg-opacity-90 text-gray-900">
           {children}
         </main>
+        <Toaster 
+          position="top-right"
+          expand={true}
+          richColors={true}
+          closeButton={true}
+          duration={4000}
+        />
       </body>
     </html>
   );

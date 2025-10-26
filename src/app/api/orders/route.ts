@@ -4,6 +4,15 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { 
+  createErrorResponse, 
+  ErrorCode, 
+  parseRequestBody, 
+  validatePhone, 
+  validateTokenId,
+  validateRequiredFields,
+  handlePrismaError 
+} from '@/lib/errorHandler';
 
 const PRICE_PER_PAGE = 5; // ₹5 per page
 
@@ -14,7 +23,13 @@ const PRICE_PER_PAGE = 5; // ₹5 per page
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Parse request body with error handling
+    const parseResult = await parseRequestBody(request);
+    if (!parseResult.success) {
+      return parseResult.error!;
+    }
+
+    const body = parseResult.data!;
     const { 
       name, 
       phone, 
@@ -26,98 +41,182 @@ export async function POST(request: NextRequest) {
       tokenId 
     } = body;
 
-    // Validation
-    if (!name?.trim() || !phone?.trim() || !copies || !pages) {
-      return NextResponse.json(
-        { error: 'Name, phone, copies, and pages are required' },
-        { status: 400 }
+    // Validate required fields
+    const requiredFields = ['name', 'phone', 'copies', 'pages', 'files', 'isNewUser'];
+    const validation = validateRequiredFields(body, requiredFields);
+    if (!validation.valid) {
+      return validation.error!;
+    }
+
+    // Validate phone number format
+    const phoneValidation = validatePhone(phone);
+    if (!phoneValidation.valid) {
+      return createErrorResponse(
+        phoneValidation.error!,
+        ErrorCode.PHONE_INVALID,
+        400,
+        { field: 'phone' }
       );
     }
 
-    if (!/^\d{10}$/.test(phone)) {
-      return NextResponse.json(
-        { error: 'Invalid phone number format' },
-        { status: 400 }
-      );
-    }
-
+    // Validate copies and pages
     if (copies < 1 || pages < 1) {
-      return NextResponse.json(
-        { error: 'Copies and pages must be at least 1' },
-        { status: 400 }
+      return createErrorResponse(
+        'Copies and pages must be at least 1',
+        ErrorCode.VALIDATION,
+        400,
+        { field: copies < 1 ? 'copies' : 'pages' }
       );
     }
 
-    if (!files || files.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one file is required' },
-        { status: 400 }
+    // Validate files array
+    if (!Array.isArray(files) || files.length === 0) {
+      return createErrorResponse(
+        'At least one file is required',
+        ErrorCode.VALIDATION,
+        400,
+        { field: 'files' }
       );
+    }
+
+    // CRITICAL FIX: Validate tokenId for existing users
+    if (!isNewUser) {
+      if (!tokenId?.trim()) {
+        return createErrorResponse(
+          'Token ID is required for existing users. If you are a new user, please check the "I\'m new user" checkbox.',
+          ErrorCode.TOKEN_REQUIRED,
+          400,
+          { 
+            field: 'tokenId',
+            suggestion: 'Check "I\'m new user" if this is your first order, or enter your existing Token ID'
+          }
+        );
+      }
+
+      const tokenValidation = validateTokenId(tokenId);
+      if (!tokenValidation.valid) {
+        return createErrorResponse(
+          tokenValidation.error!,
+          ErrorCode.TOKEN_INVALID,
+          400,
+          { field: 'tokenId' }
+        );
+      }
     }
 
     let user;
     let isNewUserCreated = false;
 
     if (isNewUser) {
+      // CRITICAL FIX: Check if phone already exists for new users
+      const existingUser = await prisma.user.findUnique({ 
+        where: { phone } 
+      });
+      
+      if (existingUser) {
+        return createErrorResponse(
+          'This phone number is already registered. Please uncheck "I\'m new user" and enter your Token ID.',
+          ErrorCode.PHONE_EXISTS,
+          409,
+          { 
+            field: 'phone',
+            suggestion: 'Uncheck "I\'m new user" and enter your existing Token ID'
+          }
+        );
+      }
+
       // Create new user with token
       const newTokenId = `TK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
-      user = await prisma.user.create({
-        data: {
-          phone,
-          tokenId: newTokenId,
-          isVerified: false
-        }
-      });
-      isNewUserCreated = true;
+      try {
+        user = await prisma.user.create({
+          data: {
+            phone,
+            tokenId: newTokenId,
+            isVerified: false
+          }
+        });
+        isNewUserCreated = true;
+      } catch (error) {
+        return handlePrismaError(error);
+      }
     } else {
       // Find existing user by token
-      user = await prisma.user.findUnique({
-        where: { tokenId }
-      });
+      try {
+        user = await prisma.user.findUnique({
+          where: { tokenId }
+        });
 
-      if (!user) {
-        return NextResponse.json(
-          { error: 'Invalid Token ID' },
-          { status: 404 }
-        );
+        if (!user) {
+          return createErrorResponse(
+            'Invalid Token ID. Please check your Token ID or contact support if you have forgotten it.',
+            ErrorCode.TOKEN_INVALID,
+            404,
+            { 
+              field: 'tokenId',
+              suggestion: 'Double-check your Token ID or contact admin for assistance'
+            }
+          );
+        }
+
+        // CRITICAL FIX: Validate tokenId matches phone number
+        if (user.phone !== phone) {
+          return createErrorResponse(
+            'Token ID does not match the phone number provided. Please verify both details.',
+            ErrorCode.TOKEN_MISMATCH,
+            400,
+            { 
+              field: 'tokenId',
+              suggestion: 'Ensure the Token ID belongs to the phone number you entered'
+            }
+          );
+        }
+      } catch (error) {
+        return handlePrismaError(error);
       }
     }
 
     // Calculate total amount
     const totalAmount = pages * copies * PRICE_PER_PAGE;
 
-    // Create the order
-    const newOrder = await prisma.order.create({
-      data: {
-        name: name.trim(),
-        phone,
-        pages,
-        tokenId: user.tokenId,
-        copies,
-        notes: notes?.trim() || null,
-        totalAmount,
-        files: files, // Array of file descriptors
-        userId: user.id,
-        status: 'PENDING',
-        paymentStatus: 'PENDING'
-      }
-    });
+    // Create the order with error handling
+    try {
+      const newOrder = await prisma.order.create({
+        data: {
+          name: name.trim(),
+          phone,
+          pages,
+          tokenId: user.tokenId,
+          copies,
+          notes: notes?.trim() || null,
+          totalAmount,
+          files: files, // Array of file descriptors
+          userId: user.id,
+          status: 'PENDING',
+          paymentStatus: 'PENDING'
+        }
+      });
 
-    return NextResponse.json({
-      success: true,
-      orderId: newOrder.id,
-      tokenId: user.tokenId,
-      isNewUser: isNewUserCreated,
-      totalAmount,
-      message: 'Order created successfully'
-    }, { status: 201 });
+      return NextResponse.json({
+        success: true,
+        orderId: newOrder.id,
+        tokenId: user.tokenId,
+        isNewUser: isNewUserCreated,
+        totalAmount,
+        message: 'Order created successfully'
+      }, { status: 201 });
+
+    } catch (error) {
+      return handlePrismaError(error);
+    }
 
   } catch (error) {
     console.error('Order creation failed:', error);
-    return NextResponse.json(
-      { error: 'Failed to create order' },
-      { status: 500 }
+    return createErrorResponse(
+      'Failed to create order',
+      ErrorCode.SERVER,
+      500,
+      { suggestion: 'Please try again later' }
     );
   }
 }
@@ -132,28 +231,64 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const phone = searchParams.get('phone');
     const tokenId = searchParams.get('tokenId');
-    const page = parseInt(searchParams.get('page') || '1');
+    const pageParam = searchParams.get('page') || '1';
     const q = searchParams.get('q') || '';
 
+    // Validate required parameters
     if (!phone || !tokenId) {
-      return NextResponse.json(
-        { error: 'Phone and tokenId are required' },
-        { status: 400 }
+      return createErrorResponse(
+        'Phone number and Token ID are required',
+        ErrorCode.MISSING_FIELDS,
+        400,
+        { suggestion: 'Please provide both phone number and Token ID to track orders' }
       );
     }
 
+    // Validate phone format
+    const phoneValidation = validatePhone(phone);
+    if (!phoneValidation.valid) {
+      return createErrorResponse(
+        phoneValidation.error!,
+        ErrorCode.PHONE_INVALID,
+        400,
+        { field: 'phone' }
+      );
+    }
+
+    // Validate page number
+    const pageValidation = validatePageNumber(pageParam);
+    if (!pageValidation.valid) {
+      return createErrorResponse(
+        pageValidation.error!,
+        ErrorCode.INVALID_PAGE_NUMBER,
+        400,
+        { field: 'page' }
+      );
+    }
+
+    const page = pageValidation.value!;
+
     // Find user by phone and tokenId
-    const user = await prisma.user.findFirst({
-      where: {
-        phone,
-        tokenId,
-      }
-    });
+    let user;
+    try {
+      user = await prisma.user.findFirst({
+        where: {
+          phone,
+          tokenId,
+        }
+      });
+    } catch (error) {
+      return handlePrismaError(error);
+    }
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found or invalid credentials' },
-        { status: 404 }
+      return createErrorResponse(
+        'User not found or invalid credentials. Please check your phone number and Token ID.',
+        ErrorCode.TOKEN_INVALID,
+        404,
+        { 
+          suggestion: 'Verify your phone number and Token ID are correct' 
+        }
       );
     }
 
@@ -162,11 +297,11 @@ export async function GET(request: NextRequest) {
       userId: user.id
     };
 
-    // Add search filter if provided
-    if (q) {
+    // Add search filter if provided (SQLite doesn't support case-insensitive, so use exact match)
+    if (q && q.trim()) {
       whereClause.OR = [
-        { name: { contains: q, mode: 'insensitive' } },
-        { id: { contains: q, mode: 'insensitive' } }
+        { name: { contains: q.trim() } },
+        { id: { contains: q.trim() } }
       ];
     }
 
@@ -175,15 +310,20 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * ITEMS_PER_PAGE;
 
     // Get orders with pagination
-    const [orders, totalCount] = await Promise.all([
-      prisma.order.findMany({
-        where: whereClause,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: ITEMS_PER_PAGE
-      }),
-      prisma.order.count({ where: whereClause })
-    ]);
+    let orders, totalCount;
+    try {
+      [orders, totalCount] = await Promise.all([
+        prisma.order.findMany({
+          where: whereClause,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: ITEMS_PER_PAGE
+        }),
+        prisma.order.count({ where: whereClause })
+      ]);
+    } catch (error) {
+      return handlePrismaError(error);
+    }
 
     const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
@@ -201,9 +341,11 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Failed to fetch orders:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch orders' },
-      { status: 500 }
+    return createErrorResponse(
+      'Failed to fetch orders',
+      ErrorCode.SERVER,
+      500,
+      { suggestion: 'Please try again later' }
     );
   }
 }
@@ -217,49 +359,91 @@ export async function PATCH(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const orderId = searchParams.get('id');
-    const { status, paymentStatus } = await request.json();
 
+    // Parse request body with error handling
+    const parseResult = await parseRequestBody(request);
+    if (!parseResult.success) {
+      return parseResult.error!;
+    }
+
+    const { status, paymentStatus } = parseResult.data!;
+
+    // Validate order ID
     if (!orderId) {
-      return NextResponse.json(
-        { error: 'Order ID is required' },
-        { status: 400 }
+      return createErrorResponse(
+        'Order ID is required',
+        ErrorCode.MISSING_FIELDS,
+        400,
+        { field: 'id' }
       );
     }
 
+    // Validate order ID format
+    const orderIdValidation = validateCuid(orderId);
+    if (!orderIdValidation.valid) {
+      return createErrorResponse(
+        orderIdValidation.error!,
+        ErrorCode.VALIDATION,
+        400,
+        { field: 'id' }
+      );
+    }
+
+    // Validate at least one field to update
     if (!status && !paymentStatus) {
-      return NextResponse.json(
-        { error: 'Status or paymentStatus is required' },
-        { status: 400 }
+      return createErrorResponse(
+        'Status or paymentStatus is required',
+        ErrorCode.MISSING_FIELDS,
+        400,
+        { suggestion: 'Provide either status or paymentStatus to update' }
       );
     }
 
     // Validate status values
-    const validStatuses = ['PENDING', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
+    const validStatuses = ['PENDING', 'COMPLETED', 'CANCELLED'];
     const validPaymentStatuses = ['PENDING', 'PAID', 'VERIFIED'];
 
     if (status && !validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: 'Invalid status value' },
-        { status: 400 }
+      return createErrorResponse(
+        `Invalid status value. Valid values: ${validStatuses.join(', ')}`,
+        ErrorCode.VALIDATION,
+        400,
+        { field: 'status' }
       );
     }
 
     if (paymentStatus && !validPaymentStatuses.includes(paymentStatus)) {
-      return NextResponse.json(
-        { error: 'Invalid paymentStatus value' },
-        { status: 400 }
+      return createErrorResponse(
+        `Invalid paymentStatus value. Valid values: ${validPaymentStatuses.join(', ')}`,
+        ErrorCode.VALIDATION,
+        400,
+        { field: 'paymentStatus' }
       );
     }
 
-    // Update order
+    // Update order with error handling
     const updateData: any = {};
     if (status) updateData.status = status;
     if (paymentStatus) updateData.paymentStatus = paymentStatus;
 
-    const updatedOrder = await prisma.order.update({
-      where: { id: orderId },
-      data: updateData
-    });
+    let updatedOrder;
+    try {
+      updatedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: updateData
+      });
+    } catch (error) {
+      // Handle Prisma RecordNotFound error
+      if (error.code === 'P2025') {
+        return createErrorResponse(
+          'Order not found',
+          ErrorCode.ORDER_NOT_FOUND,
+          404,
+          { suggestion: 'Check if the order ID is correct' }
+        );
+      }
+      return handlePrismaError(error);
+    }
 
     return NextResponse.json({
       success: true,
@@ -269,9 +453,11 @@ export async function PATCH(request: NextRequest) {
 
   } catch (error) {
     console.error('Failed to update order:', error);
-    return NextResponse.json(
-      { error: 'Failed to update order' },
-      { status: 500 }
+    return createErrorResponse(
+      'Failed to update order',
+      ErrorCode.SERVER,
+      500,
+      { suggestion: 'Please try again later' }
     );
   }
 }

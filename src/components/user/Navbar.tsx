@@ -1,11 +1,10 @@
 /**
  * @file src/components/user/Navbar.tsx
  * @description Provides navigation for the main page with smooth scroll links.
- * Features responsive navigation with theme toggle and proper accessibility.
+ * Features responsive navigation and proper accessibility.
  */
 "use client";
 import Link from "next/link";
-import ThemeToggle from "@/components/ui/theme-toggle";
 
 /**
  * Navigation link interface for type safety
@@ -16,7 +15,7 @@ interface NavLink {
 }
 
 /**
- * Navbar component with responsive design and theme toggle
+ * Navbar component with responsive design
  * @returns JSX element for the main navigation
  */
 const Navbar = () => {
@@ -47,9 +46,6 @@ const Navbar = () => {
               </Link>
             </li>
           ))}
-          <li>
-            <ThemeToggle />
-          </li>
         </ul>
       </nav>
     </header>
