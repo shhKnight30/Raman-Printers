@@ -48,9 +48,6 @@ public/uploads/
 .vscode/
 !schema.prisma
 !migrations/
-# Test files (temporary)
-test-upload.html
-test-upload.js
 
 # OS files
 Thumbs.db

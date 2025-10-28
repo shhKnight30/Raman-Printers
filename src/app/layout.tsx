@@ -11,7 +11,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AkPrints - Your Printing Solution",
+  title: "Raman Prints - Your Printing Solution",
   description: "High-quality printing services at your fingertips.",
 };
 
@@ -26,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="!scroll-smooth">
+    <html lang="en" className="!scroll-smooth" suppressHydrationWarning>
       <body
         className={`${inter.className} bg-cover bg-center`}
         style={{ backgroundImage: "url('/backgrounds/default.jpg')" }}

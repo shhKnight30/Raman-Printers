@@ -10,7 +10,7 @@ import {
   parseRequestBody 
 } from '@/lib/errorHandler';
 
-const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'admin123';
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'AkPrints@2025Secure';
 const SESSION_COOKIE_NAME = 'admin-session';
 
 /**

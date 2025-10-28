@@ -4,6 +4,7 @@
  * Displays order counts, revenue, and user statistics.
  */
 "use client";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -13,7 +14,9 @@ import {
   Clock, 
   CheckCircle, 
   XCircle,
-  AlertCircle 
+  AlertCircle,
+  Eye,
+  EyeOff
 } from "lucide-react";
 
 /**
@@ -46,6 +49,8 @@ interface AdminStatsProps {
  * @returns JSX element for admin statistics
  */
 const AdminStats: React.FC<AdminStatsProps> = ({ stats, isLoading = false }) => {
+  const [showRevenue, setShowRevenue] = useState(true);
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -100,12 +105,14 @@ const AdminStats: React.FC<AdminStatsProps> = ({ stats, isLoading = false }) => 
     },
     {
       title: "Total Revenue",
-      value: `₹${stats.totalRevenue.toFixed(2)}`,
+      value: showRevenue ? `₹${stats.totalRevenue.toFixed(2)}` : '₹******',
       icon: DollarSign,
       color: "text-green-600",
       bgColor: "bg-green-50",
-      change: `₹${stats.pendingRevenue.toFixed(2)}`,
+      change: showRevenue ? `₹${stats.pendingRevenue.toFixed(2)}` : '₹****',
       changeLabel: "Pending",
+      showRevenue,
+      setShowRevenue,
     },
     {
       title: "Verified Users",
@@ -165,8 +172,23 @@ const AdminStats: React.FC<AdminStatsProps> = ({ stats, isLoading = false }) => 
                     </p>
                   )}
                 </div>
-                <div className={`p-3 rounded-full ${stat.bgColor}`}>
-                  <Icon className={`h-6 w-6 ${stat.color}`} />
+                <div className="flex items-center space-x-2">
+                  <div className={`p-3 rounded-full ${stat.bgColor}`}>
+                    <Icon className={`h-6 w-6 ${stat.color}`} />
+                  </div>
+                  {stat.title === "Total Revenue" && (
+                    <button
+                      onClick={() => setShowRevenue(!showRevenue)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                      title={showRevenue ? "Hide revenue" : "Show revenue"}
+                    >
+                      {showRevenue ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
               {stat.badge && (

@@ -8,12 +8,8 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '50mb',
     },
   },
-  // API route config for larger payloads
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb',
-    },
-  },
+  // Note: API route body size limit is handled in middleware/route handlers
+  // The 'api' config option is not valid in Next.js 15
 };
 
 export default nextConfig;

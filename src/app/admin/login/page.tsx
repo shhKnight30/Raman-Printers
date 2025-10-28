@@ -1,6 +1,6 @@
 /**
  * @file src/app/admin/login/page.tsx
- * @description Enhanced admin login page with improved styling and security features.
+ * @description Admin login page with passcode authentication.
  * Features form validation, loading states, and proper error handling.
  */
 "use client";
@@ -9,17 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Shield, Eye, EyeOff, Lock, User } from "lucide-react";
-import { showError, showSuccess, showLoading, updateToSuccess, updateToError, ToastMessages } from "@/lib/toast";
+import { Shield, Eye, EyeOff, Lock } from "lucide-react";
+import { showError, showLoading, updateToSuccess, updateToError } from "@/lib/toast";
 
 /**
  * AdminLogin component with enhanced security features
  * @returns JSX element for admin login page
  */
 const AdminLogin = () => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [passcode, setPasscode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,42 +33,53 @@ const AdminLogin = () => {
     setError("");
 
     // Basic validation
-    if (!username.trim() || !password.trim()) {
-      showError("Please fill in all fields");
-      setError("Please fill in all fields");
+    if (!passcode.trim()) {
+      showError("Please enter the admin passcode");
+      setError("Please enter the admin passcode");
       setIsLoading(false);
       return;
     }
 
     const loadingToast = showLoading("Signing in...", "Please wait while we verify your credentials");
 
-    // TODO: Implement actual authentication logic with JWT/sessions
-    // For now, we'll simulate login with hardcoded credentials
-    setTimeout(() => {
-      if (username === "admin" && password === "admin123") {
-        // TODO: Set secure authentication cookie/token
-        // TODO: Log successful login attempt
-        updateToSuccess(loadingToast, ToastMessages.LOGIN_SUCCESS, "Redirecting to dashboard...");
-        setTimeout(() => {
-          window.location.href = "/admin/dashboard";
-        }, 1000);
-      } else {
-        const newAttempts = loginAttempts + 1;
-        setLoginAttempts(newAttempts);
-        
-        if (newAttempts >= 3) {
-          const errorMsg = "Too many failed attempts. Please try again later.";
-          updateToError(loadingToast, errorMsg);
-          setError(errorMsg);
-          // TODO: Implement account lockout mechanism
+    // Call admin session API
+    try {
+      const response = await fetch('/api/admin/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passcode })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          updateToSuccess(loadingToast, "Login successful!", "Redirecting to dashboard...");
+          setTimeout(() => {
+            window.location.href = "/admin/dashboard";
+          }, 1000);
         } else {
-          const errorMsg = `Invalid credentials. ${3 - newAttempts} attempts remaining.`;
-          updateToError(loadingToast, errorMsg);
-          setError(errorMsg);
+          throw new Error(data.error || 'Login failed');
         }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Invalid passcode');
       }
+    } catch (err: any) {
+      const errorMsg = err.message || 'Login failed. Please try again.';
+      updateToError(loadingToast, errorMsg);
+      setError(errorMsg);
+      
+      const newAttempts = loginAttempts + 1;
+      setLoginAttempts(newAttempts);
+      
+      if (newAttempts >= 3) {
+        const lockMsg = "Too many failed attempts. Please try again later.";
+        updateToError(loadingToast, lockMsg);
+        setError(lockMsg);
+      }
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   /**
@@ -109,36 +118,17 @@ const AdminLogin = () => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-gray-700 font-medium">
-                Username
-              </Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter your username"
-                  className="pl-10 border-gray-300 focus:border-blue-500"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700 font-medium">
-                Password
+              <Label htmlFor="passcode" className="text-gray-700 font-medium">
+                Admin Passcode
               </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  id="password"
+                  id="passcode"
                   type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  placeholder="Enter admin passcode"
                   className="pl-10 pr-10 border-gray-300 focus:border-blue-500"
                   required
                   disabled={isLoading}
@@ -175,24 +165,6 @@ const AdminLogin = () => {
               )}
             </Button>
           </form>
-
-          {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-900">Demo Credentials</p>
-                <p className="text-xs text-blue-700 mt-1">
-                  Username: <code className="bg-blue-100 px-1 rounded">admin</code>
-                </p>
-                <p className="text-xs text-blue-700">
-                  Password: <code className="bg-blue-100 px-1 rounded">admin123</code>
-                </p>
-              </div>
-              <Badge className="bg-blue-100 text-blue-800">
-                Development
-              </Badge>
-            </div>
-          </div>
 
           {/* Security Notice */}
           <div className="mt-4 text-center">

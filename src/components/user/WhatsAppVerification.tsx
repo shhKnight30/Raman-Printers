@@ -55,7 +55,7 @@ const WhatsAppVerification: React.FC<WhatsAppVerificationProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-md bg-white border-gray-200 shadow-xl">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-xl font-semibold text-gray-900">
@@ -125,7 +125,7 @@ const WhatsAppVerification: React.FC<WhatsAppVerificationProps> = ({
               </li>
               <li className="flex items-start space-x-2">
                 <span className="bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-medium mt-0.5">4</span>
-                <span>Click "I'm Verified" once confirmed</span>
+                <span>Click &quot;I&apos;m Verified&quot; once confirmed</span>
               </li>
             </ol>
           </div>

@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Eye, Trash2, QrCode, CreditCard, CheckCircle, Copy, MessageCircle } from "lucide-react";
-import { showError, showSuccess, showLoading, updateToSuccess, updateToError, ToastMessages } from "@/lib/toast";
+import Image from "next/image";
+import { showError, showSuccess } from "@/lib/toast";
 
 interface OrderData {
   name: string;
@@ -43,7 +44,7 @@ export default function PaymentPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPayNow, setShowPayNow] = useState(false);
   const [showPayLater, setShowPayLater] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showTokenVerification, setShowTokenVerification] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [userTokenId, setUserTokenId] = useState<string | null>(null);
@@ -65,14 +66,14 @@ export default function PaymentPage() {
 
   // Lock body scroll when modals are open
   useEffect(() => {
-    const anyModalOpen = showPayNow || showPayLater || showTokenVerification || showSuccess;
+    const anyModalOpen = showPayNow || showPayLater || showTokenVerification || showSuccessModal;
     if (anyModalOpen) {
       document.body.style.overflow = 'hidden';
       return () => {
         document.body.style.overflow = 'unset';
       };
     }
-  }, [showPayNow, showPayLater, showTokenVerification, showSuccess]);
+  }, [showPayNow, showPayLater, showTokenVerification, showSuccessModal]);
 
 
   /**
@@ -120,7 +121,7 @@ export default function PaymentPage() {
   /**
    * Confirms payment and creates order
    */
-  const confirmPayment = async (paymentType: 'pay-now' | 'pay-later') => {
+  const confirmPayment = async () => {
     if (!orderData) return;
 
     setIsLoading(true);
@@ -155,7 +156,7 @@ export default function PaymentPage() {
       if (result.isNewUser) {
         setShowTokenVerification(true);
       } else {
-        setShowSuccess(true);
+        setShowSuccessModal(true);
       }
       
       // Clear localStorage
@@ -392,20 +393,39 @@ export default function PaymentPage() {
       {/* Pay Now Modal */}
       {showPayNow && (
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <Card className="w-full max-w-md max-h-screen overflow-y-auto animate-in fade-in zoom-in-95 duration-300">
+          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-300">
             <CardHeader>
               <CardTitle className="text-center">Complete Payment</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="text-center">
-                <div className="w-72 h-72 mx-auto bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center mb-6 shadow-inner">
-                  <div className="text-center p-4">
-                    <div className="w-32 h-32 mx-auto bg-white rounded-lg shadow-lg flex items-center justify-center mb-4">
-                      <QrCode className="h-16 w-16 text-blue-500" />
-                    </div>
-                    <p className="text-base font-medium text-gray-700 mb-1">UPI QR Code</p>
-                    <p className="text-xs text-gray-500">Scan with any UPI app</p>
+                <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 mb-6">
+                  <div className="flex justify-center mb-4">
+                    {process.env.NEXT_PUBLIC_QR_CODE_IMAGE ? (
+                      <Image
+                        src={process.env.NEXT_PUBLIC_QR_CODE_IMAGE}
+                        alt="UPI QR Code"
+                        width={160}
+                        height={180}
+                        className="rounded-lg"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-56 h-56 bg-white rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="w-40 h-40 bg-gray-200 rounded mx-auto mb-2"></div>
+                          <p className="text-sm text-gray-600">QR Code Not Configured</p>
+                          <p className="text-xs text-gray-500">Add QR image to env</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  <p className="text-sm text-gray-700 font-medium mb-2">
+                    Scan with your UPI app to pay ₹{totalAmount}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Use any UPI app like PhonePe, Google Pay, Paytm, or BHIM
+                  </p>
                 </div>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                   <p className="text-sm font-medium text-blue-900 mb-1">
@@ -419,7 +439,7 @@ export default function PaymentPage() {
 
               <div className="space-y-3">
                 <Button
-                  onClick={() => confirmPayment('pay-now')}
+                  onClick={() => confirmPayment()}
                   disabled={isLoading}
                   className="w-full bg-green-600 hover:bg-green-700 transition-colors duration-200 font-medium py-3"
                 >
@@ -448,7 +468,7 @@ export default function PaymentPage() {
       {/* Pay Later Modal */}
       {showPayLater && (
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <Card className="w-full max-w-md max-h-screen overflow-y-auto animate-in fade-in zoom-in-95 duration-300">
+          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-300">
             <CardHeader>
               <CardTitle className="text-center">Confirm Order</CardTitle>
             </CardHeader>
@@ -464,7 +484,7 @@ export default function PaymentPage() {
 
               <div className="space-y-3">
                 <Button
-                  onClick={() => confirmPayment('pay-later')}
+                  onClick={() => confirmPayment()}
                   disabled={isLoading}
                   className="w-full bg-gray-800 hover:bg-gray-900 transition-colors duration-200 font-medium py-3"
                 >
@@ -493,7 +513,7 @@ export default function PaymentPage() {
       {/* Token Verification Modal - Only for NEW users */}
       {showTokenVerification && (
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <Card className="w-full max-w-lg max-h-screen overflow-y-auto animate-in fade-in zoom-in-95 duration-300">
+          <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-300">
             <CardHeader>
               <CardTitle className="text-center text-blue-600">Account Verification Required</CardTitle>
               <p className="text-center text-gray-600 text-sm">
@@ -536,7 +556,7 @@ export default function PaymentPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Copy this token ID - you'll need it for verification
+                  Copy this token ID - you&apos;ll need it for verification
                 </p>
               </div>
 
@@ -574,7 +594,7 @@ export default function PaymentPage() {
                 variant="outline"
                 className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
               >
-                I've Sent the Verification Message
+                I&apos;ve Sent the Verification Message
               </Button>
             </CardContent>
           </Card>
@@ -582,9 +602,9 @@ export default function PaymentPage() {
       )}
 
       {/* Success Modal - Only for existing users */}
-      {showSuccess && (
+      {showSuccessModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <Card className="w-full max-w-md max-h-screen overflow-y-auto animate-in fade-in zoom-in-95 duration-300">
+          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-300">
             <CardHeader>
               <CardTitle className="text-center text-green-600">Order Placed Successfully!</CardTitle>
             </CardHeader>

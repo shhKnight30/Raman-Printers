@@ -101,7 +101,7 @@ const VerificationQueue: React.FC<VerificationQueueProps> = ({
    * Generates WhatsApp verification URL
    */
   const generateWhatsAppURL = (phone: string, tokenId: string) => {
-    const message = `verify #${tokenId}`;
+    const message = `verified #${tokenId}`;
     const encodedMessage = encodeURIComponent(message);
     return `https://wa.me/${phone}?text=${encodedMessage}`;
   };

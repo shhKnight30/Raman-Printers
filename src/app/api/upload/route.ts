@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
+import path from 'path';
 import { existsSync } from 'fs';
 import { 
   createErrorResponse, 
@@ -19,6 +20,7 @@ import {
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'public/uploads';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB total per upload
+const UPLOAD_TIMEOUT = parseInt(process.env.UPLOAD_TIMEOUT || '60') * 1000; // 60 seconds default
 const ALLOWED_TYPES = [
   'application/pdf',
   'image/jpeg',
@@ -37,8 +39,13 @@ const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
  * @returns NextResponse with file descriptors
  */
 export async function POST(request: NextRequest) {
+  // Create a timeout promise that rejects after UPLOAD_TIMEOUT
+  const uploadTimeout = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Upload timeout')), UPLOAD_TIMEOUT);
+  });
+
   try {
-    console.log('Upload API called');
+    console.log('Upload API called with timeout:', UPLOAD_TIMEOUT / 1000, 'seconds');
     
     // Parse FormData with error handling
     const parseResult = await parseFormData(request);
@@ -177,27 +184,45 @@ export async function POST(request: NextRequest) {
 
       // Sanitize filename
       const sanitizedName = sanitizeFilename(file.name);
-      const filePath = join(userDir, sanitizedName);
-      
-      // Check for duplicate filename
-      if (existsSync(filePath)) {
-        return createErrorResponse(
-          `A file with the name "${sanitizedName}" already exists. Please rename your file.`,
-          ErrorCode.DUPLICATE_FILE,
-          409,
-          { suggestion: 'Rename your file and try again' }
-        );
+      const fileExtension = path.extname(sanitizedName);
+      const baseName = path.basename(sanitizedName, fileExtension);
+
+      // Handle duplicate filenames by adding suffix (1), (2), etc.
+      let finalFileName = sanitizedName;
+      let counter = 1;
+
+      while (existsSync(join(userDir, finalFileName))) {
+        finalFileName = `${baseName} (${counter})${fileExtension}`;
+        counter++;
       }
+
+      const filePath = join(userDir, finalFileName);
 
       console.log(`Saving file to: ${filePath}`);
 
-      // Write file with error handling
+      // Write file with error handling and timeout
       try {
-        const bytes = await file.arrayBuffer();
-        await writeFile(filePath, Buffer.from(bytes));
+        const bytes = await Promise.race([
+          file.arrayBuffer(),
+          uploadTimeout
+        ]);
+        await Promise.race([
+          writeFile(filePath, Buffer.from(bytes as ArrayBuffer)),
+          uploadTimeout
+        ]);
         console.log(`File saved successfully: ${sanitizedName}`);
-      } catch (error) {
+      } catch (error: any) {
         console.error(`Failed to save file ${sanitizedName}:`, error);
+        
+        if (error.message === 'Upload timeout') {
+          return createErrorResponse(
+            `Upload timed out after ${UPLOAD_TIMEOUT / 1000} seconds`,
+            ErrorCode.FILE_UPLOAD,
+            408,
+            { suggestion: 'Please try with smaller files or check your connection' }
+          );
+        }
+        
         return createErrorResponse(
           `Failed to save file ${sanitizedName}`,
           ErrorCode.FILE_UPLOAD,
@@ -210,8 +235,8 @@ export async function POST(request: NextRequest) {
       const pages = 1; // TODO: Implement actual page counting for PDFs
 
       fileDescriptors.push({
-        name: sanitizedName,
-        path: `/uploads/${phone}/${sanitizedName}`,
+        name: finalFileName,
+        path: `/uploads/${phone}/${finalFileName}`,
         size: file.size,
         type: file.type,
         pages

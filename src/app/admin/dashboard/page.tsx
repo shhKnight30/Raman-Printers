@@ -5,6 +5,7 @@
  */
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import OrderTable from "@/components/admin/OrderTable";
 import VerificationQueue from "@/components/admin/VerificationQueue";
@@ -71,6 +72,7 @@ interface AdminStatsData {
  * @returns JSX element for admin dashboard
  */
 const AdminDashboard = () => {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<AdminStatsData>({
@@ -85,6 +87,14 @@ const AdminDashboard = () => {
     recentOrders: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState({
+    adminPasscode: '',
+    maxFileSize: 10,
+    uploadTimeout: 60,
+    enableNotifications: true,
+    autoVerifyUsers: false
+  });
 
   /**
    * Loads dashboard data
@@ -99,144 +109,81 @@ const AdminDashboard = () => {
   const loadDashboardData = async () => {
     setIsLoading(true);
     
-    // TODO: Replace with actual API calls
-    setTimeout(() => {
-      const mockOrders: Order[] = [
-        {
-          id: 'ORD-001',
-          name: 'Maths Notes - Chapter 1',
-          phone: '9876543210',
-          pages: 25,
-          tokenId: 'TK-12345',
-          copies: 2,
-          notes: 'Black & White, single-sided',
-          totalAmount: 100,
-          status: 'PENDING',
-          paymentStatus: 'PAID',
-          files: ['maths_chapter1.pdf'],
-          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-          user: { phone: '9876543210', tokenId: 'TK-12345', isVerified: true }
-        },
-        {
-          id: 'ORD-002',
-          name: 'Project Report',
-          phone: '9876543211',
-          pages: 50,
-          tokenId: 'TK-12346',
-          copies: 1,
-          notes: 'Color print, spiral binding',
-          totalAmount: 150,
-          status: 'COMPLETED',
-          paymentStatus: 'VERIFIED',
-          files: ['project_report.pdf', 'appendix.pdf'],
-          createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          user: { phone: '9876543211', tokenId: 'TK-12346', isVerified: true }
-        },
-        {
-          id: 'ORD-003',
-          name: 'Assignment Solutions',
-          phone: '9876543212',
-          pages: 15,
-          tokenId: 'TK-12347',
-          copies: 3,
-          notes: 'Urgent delivery',
-          totalAmount: 90,
-          status: 'PENDING',
-          paymentStatus: 'PENDING',
-          files: ['assignment.pdf'],
-          createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
-          user: { phone: '9876543212', tokenId: 'TK-12347', isVerified: false }
-        },
-        {
-          id: 'ORD-004',
-          name: 'Study Material',
-          phone: '9876543210',
-          pages: 100,
-          tokenId: 'TK-12345',
-          copies: 1,
-          totalAmount: 200,
-          status: 'CANCELLED',
-          paymentStatus: 'PENDING',
-          files: ['study_material.pdf'],
-          createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-          user: { phone: '9876543210', tokenId: 'TK-12345', isVerified: true }
-        }
-      ];
+    try {
+      // Fetch all data in parallel for better performance
+      const [ordersResponse, usersResponse, statsResponse] = await Promise.all([
+        fetch('/api/admin/orders?limit=50'),
+        fetch('/api/admin/users?limit=50'),
+        fetch('/api/admin/stats')
+      ]);
 
-      const mockUsers: User[] = [
-        {
-          id: 'user1',
-          phone: '9876543210',
-          tokenId: 'TK-12345',
-          isVerified: true,
-          createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-          orders: [
-            { id: 'ORD-001', name: 'Maths Notes', status: 'PENDING', totalAmount: 100 },
-            { id: 'ORD-004', name: 'Study Material', status: 'CANCELLED', totalAmount: 200 }
-          ]
-        },
-        {
-          id: 'user2',
-          phone: '9876543211',
-          tokenId: 'TK-12346',
-          isVerified: true,
-          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-          orders: [
-            { id: 'ORD-002', name: 'Project Report', status: 'COMPLETED', totalAmount: 150 }
-          ]
-        },
-        {
-          id: 'user3',
-          phone: '9876543212',
-          tokenId: 'TK-12347',
-          isVerified: false,
-          createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
-          orders: [
-            { id: 'ORD-003', name: 'Assignment Solutions', status: 'PENDING', totalAmount: 90 }
-          ]
-        },
-        {
-          id: 'user4',
-          phone: '9876543213',
-          tokenId: 'TK-12348',
-          isVerified: false,
-          createdAt: new Date(Date.now() - 30 * 60 * 1000),
-          orders: []
-        }
-      ];
+      // Handle orders data
+      if (ordersResponse.ok) {
+        const ordersData = await ordersResponse.json();
+        setOrders(ordersData.data.orders);
+      } else {
+        console.error('Failed to fetch orders:', ordersResponse.statusText);
+        setOrders([]);
+      }
 
-      // Calculate statistics
-      const totalOrders = mockOrders.length;
-      const pendingOrders = mockOrders.filter(o => o.status === 'PENDING').length;
-      const completedOrders = mockOrders.filter(o => o.status === 'COMPLETED').length;
-      const cancelledOrders = mockOrders.filter(o => o.status === 'CANCELLED').length;
-      const totalRevenue = mockOrders
-        .filter(o => o.status === 'COMPLETED' && o.paymentStatus === 'VERIFIED')
-        .reduce((sum, o) => sum + o.totalAmount, 0);
-      const pendingRevenue = mockOrders
-        .filter(o => o.paymentStatus === 'PAID')
-        .reduce((sum, o) => sum + o.totalAmount, 0);
-      const verifiedUsers = mockUsers.filter(u => u.isVerified).length;
-      const pendingVerifications = mockUsers.filter(u => !u.isVerified).length;
-      const recentOrders = mockOrders.filter(o => 
-        Date.now() - o.createdAt.getTime() < 24 * 60 * 60 * 1000
-      ).length;
+      // Handle users data
+      if (usersResponse.ok) {
+        const usersData = await usersResponse.json();
+        setUsers(usersData.data.users);
+      } else {
+        console.error('Failed to fetch users:', usersResponse.statusText);
+        setUsers([]);
+      }
 
-      setOrders(mockOrders);
-      setUsers(mockUsers);
+      // Handle statistics data
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setStats({
+          totalOrders: statsData.data.totalOrders,
+          pendingOrders: statsData.data.pendingOrders,
+          completedOrders: statsData.data.completedOrders,
+          cancelledOrders: statsData.data.cancelledOrders,
+          totalRevenue: statsData.data.totalRevenue,
+          pendingRevenue: statsData.data.pendingRevenue,
+          verifiedUsers: statsData.data.verifiedUsers,
+          pendingVerifications: statsData.data.pendingVerifications,
+          recentOrders: statsData.data.recentOrders,
+        });
+      } else {
+        console.error('Failed to fetch stats:', statsResponse.statusText);
+        // Set default stats if API fails
+        setStats({
+          totalOrders: 0,
+          pendingOrders: 0,
+          completedOrders: 0,
+          cancelledOrders: 0,
+          totalRevenue: 0,
+          pendingRevenue: 0,
+          verifiedUsers: 0,
+          pendingVerifications: 0,
+          recentOrders: 0,
+        });
+      }
+
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      // Set empty data on error
+      setOrders([]);
+      setUsers([]);
       setStats({
-        totalOrders,
-        pendingOrders,
-        completedOrders,
-        cancelledOrders,
-        totalRevenue,
-        pendingRevenue,
-        verifiedUsers,
-        pendingVerifications,
-        recentOrders,
+        totalOrders: 0,
+        pendingOrders: 0,
+        completedOrders: 0,
+        cancelledOrders: 0,
+        totalRevenue: 0,
+        pendingRevenue: 0,
+        verifiedUsers: 0,
+        pendingVerifications: 0,
+        recentOrders: 0,
       });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   /**
@@ -244,12 +191,31 @@ const AdminDashboard = () => {
    * @param orderId - ID of the order to update
    * @param status - New status
    */
-  const updateOrderStatus = (orderId: string, status: string) => {
+  const updateOrderStatus = async (orderId: string, status: string) => {
+    try {
+      const response = await fetch(`/api/orders?id=${orderId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status
+        })
+      });
+
+      if (response.ok) {
+        // Update local state
     setOrders(prev => prev.map(order => 
       order.id === orderId ? { ...order, status: status as 'PENDING' | 'COMPLETED' | 'CANCELLED' } : order
     ));
-    // TODO: Implement API call
-    console.log(`Updated order ${orderId} status to ${status}`);
+        console.log(`Successfully updated order ${orderId} status to ${status}`);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to update order status:', errorData.error);
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+    }
   };
 
   /**
@@ -257,64 +223,248 @@ const AdminDashboard = () => {
    * @param orderId - ID of the order to update
    * @param paymentStatus - New payment status
    */
-  const updatePaymentStatus = (orderId: string, paymentStatus: string) => {
+  const updatePaymentStatus = async (orderId: string, paymentStatus: string) => {
+    try {
+      const response = await fetch(`/api/orders?id=${orderId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paymentStatus
+        })
+      });
+
+      if (response.ok) {
+        // Update local state
     setOrders(prev => prev.map(order => 
       order.id === orderId ? { ...order, paymentStatus: paymentStatus as 'PENDING' | 'PAID' | 'VERIFIED' } : order
     ));
-    // TODO: Implement API call
-    console.log(`Updated order ${orderId} payment status to ${paymentStatus}`);
+        console.log(`Successfully updated order ${orderId} payment status to ${paymentStatus}`);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to update payment status:', errorData.error);
+      }
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+    }
   };
 
   /**
    * Deletes files for an order
    * @param orderId - ID of the order
    */
-  const deleteFiles = (orderId: string) => {
+  const deleteFiles = async (orderId: string) => {
+    try {
+      // Get the order to find its files
+      const order = orders.find(o => o.id === orderId);
+      if (!order || !order.files || order.files.length === 0) {
+        console.log('No files to delete for order', orderId);
+        return;
+      }
+
+      // Delete each file
+      const deletePromises = order.files.map(fileName => 
+        fetch(`/api/orders/${orderId}/files/${fileName}`, {
+          method: 'DELETE'
+        })
+      );
+
+      const results = await Promise.all(deletePromises);
+      const successCount = results.filter(r => r.ok).length;
+
+      if (successCount > 0) {
+        // Update local state
     setOrders(prev => prev.map(order => 
       order.id === orderId ? { ...order, files: [] } : order
     ));
-    // TODO: Implement API call
-    console.log(`Deleted files for order ${orderId}`);
+        console.log(`Successfully deleted ${successCount} files for order ${orderId}`);
+      } else {
+        console.error('Failed to delete files for order', orderId);
+      }
+    } catch (error) {
+      console.error('Error deleting files:', error);
+    }
   };
 
   /**
    * Verifies a single user
    * @param userId - ID of the user to verify
    */
-  const verifyUser = (userId: string) => {
+  const verifyUser = async (userId: string) => {
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userIds: [userId],
+          isVerified: true
+        })
+      });
+
+      if (response.ok) {
+        // Update local state
     setUsers(prev => prev.map(user => 
       user.id === userId ? { ...user, isVerified: true } : user
     ));
-    // TODO: Implement API call
-    console.log(`Verified user ${userId}`);
+        console.log(`Successfully verified user ${userId}`);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to verify user:', errorData.error);
+      }
+    } catch (error) {
+      console.error('Error verifying user:', error);
+    }
   };
 
   /**
    * Verifies multiple users in bulk
    * @param userIds - Array of user IDs to verify
    */
-  const bulkVerifyUsers = (userIds: string[]) => {
+  const bulkVerifyUsers = async (userIds: string[]) => {
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userIds,
+          isVerified: true
+        })
+      });
+
+      if (response.ok) {
+        // Update local state
     setUsers(prev => prev.map(user => 
       userIds.includes(user.id) ? { ...user, isVerified: true } : user
     ));
-    // TODO: Implement API call
-    console.log(`Bulk verified users: ${userIds.join(', ')}`);
+        console.log(`Successfully bulk verified users: ${userIds.join(', ')}`);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to bulk verify users:', errorData.error);
+      }
+    } catch (error) {
+      console.error('Error bulk verifying users:', error);
+    }
+  };
+
+  /**
+   * Views order details
+   * @param orderId - ID of the order to view
+   */
+  const viewOrder = (orderId: string) => {
+    router.push(`/admin/orders/${orderId}`);
+  };
+
+  /**
+   * Downloads order files
+   * @param orderId - ID of the order to download files from
+   */
+  const downloadFiles = (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (order && order.files.length > 0) {
+      // For now, just show an alert with file information
+      // In the future, this could trigger actual file downloads
+      alert(`Files for Order ${orderId}:\n${order.files.join('\n')}`);
+    } else {
+      alert('No files found for this order');
+    }
   };
 
   /**
    * Handles admin logout
    */
-  const handleLogout = () => {
-    // TODO: Implement logout logic
-    window.location.href = '/admin/login';
+  const handleLogout = async () => {
+    try {
+      // Call logout API
+      await fetch('/api/admin/session', {
+        method: 'DELETE'
+      });
+      
+      // Redirect to login
+      window.location.href = '/admin/login';
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Redirect anyway
+      window.location.href = '/admin/login';
+    }
   };
 
   /**
-   * Exports dashboard data
+   * Exports dashboard data as CSV
    */
   const exportData = () => {
-    // TODO: Implement data export
-    console.log('Exporting dashboard data...');
+    try {
+      // Export orders as CSV
+      const csvHeaders = ['Order ID', 'Name', 'Phone', 'Pages', 'Copies', 'Total Amount', 'Status', 'Payment Status', 'Created At'];
+      const csvRows = orders.map(order => [
+        order.id,
+        order.name,
+        order.phone,
+        order.pages,
+        order.copies,
+        order.totalAmount,
+        order.status,
+        order.paymentStatus,
+        order.createdAt.toISOString()
+      ]);
+      
+      const csvContent = [
+        csvHeaders.join(','),
+        ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+      
+      // Create download link
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `orders-export-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      console.log('Data exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
+
+  /**
+   * Opens settings modal
+   */
+  const handleSettings = () => {
+    setShowSettings(true);
+  };
+
+  /**
+   * Closes settings modal
+   */
+  const closeSettings = () => {
+    setShowSettings(false);
+  };
+
+  /**
+   * Saves settings configuration
+   */
+  const saveSettings = async () => {
+    // TODO: Implement settings save API endpoint
+    alert('Settings saved successfully! (Note: Full implementation requires API endpoint)');
+    setShowSettings(false);
+  };
+
+  /**
+   * Updates a setting value
+   */
+  const updateSetting = (key: string, value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
   };
 
   return (
@@ -347,6 +497,7 @@ const AdminDashboard = () => {
               </Button>
               <Button
                 variant="outline"
+                onClick={handleSettings}
                 className="border-gray-300 text-gray-700 hover:bg-gray-50"
               >
                 <Settings className="h-4 w-4 mr-2" />
@@ -378,6 +529,8 @@ const AdminDashboard = () => {
             onUpdateOrderStatus={updateOrderStatus}
             onUpdatePaymentStatus={updatePaymentStatus}
             onDeleteFiles={deleteFiles}
+            onViewOrder={viewOrder}
+            onDownloadFiles={downloadFiles}
             isLoading={isLoading}
           />
         </div>
@@ -390,6 +543,136 @@ const AdminDashboard = () => {
           isLoading={isLoading}
         />
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
+                <button
+                  onClick={closeSettings}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Settings Form */}
+              <div className="space-y-6">
+                {/* Admin Passcode */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Admin Passcode
+                  </label>
+                  <input
+                    type="password"
+                    value={settings.adminPasscode}
+                    onChange={(e) => updateSetting('adminPasscode', e.target.value)}
+                    placeholder="Enter new passcode (leave empty to keep current)"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Keep it secure and confidential</p>
+                </div>
+
+                {/* Max File Size */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Max File Size (MB)
+                  </label>
+                  <input
+                    type="number"
+                    value={settings.maxFileSize}
+                    onChange={(e) => updateSetting('maxFileSize', parseInt(e.target.value))}
+                    min="1"
+                    max="100"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Maximum file size for uploads (1-100 MB)</p>
+                </div>
+
+                {/* Upload Timeout */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Upload Timeout (seconds)
+                  </label>
+                  <input
+                    type="number"
+                    value={settings.uploadTimeout}
+                    onChange={(e) => updateSetting('uploadTimeout', parseInt(e.target.value))}
+                    min="30"
+                    max="300"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Timeout for file uploads (30-300 seconds)</p>
+                </div>
+
+                {/* Enable Notifications */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Enable Notifications
+                    </label>
+                    <p className="text-xs text-gray-500">Receive notifications for new orders and events</p>
+                  </div>
+                  <button
+                    onClick={() => updateSetting('enableNotifications', !settings.enableNotifications)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      settings.enableNotifications ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        settings.enableNotifications ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Auto Verify Users */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Auto Verify Users
+                    </label>
+                    <p className="text-xs text-gray-500">Automatically verify new user registrations</p>
+                  </div>
+                  <button
+                    onClick={() => updateSetting('autoVerifyUsers', !settings.autoVerifyUsers)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      settings.autoVerifyUsers ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        settings.autoVerifyUsers ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 mt-8">
+                <Button
+                  variant="outline"
+                  onClick={closeSettings}
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={saveSettings}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Save Settings
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

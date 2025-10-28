@@ -10,6 +10,7 @@ import {
   parseRequestBody, 
   validatePhone, 
   validateTokenId,
+  validateCuid,
   validateRequiredFields,
   handlePrismaError 
 } from '@/lib/errorHandler';
@@ -349,6 +350,13 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+function validatePageNumber(page: string) {
+  const num = parseInt(page, 10);
+  if (isNaN(num) || num < 1) {
+    return { valid: false, error: 'Invalid page number' };
+  }
+  return { valid: true, value: num };
+}
 
 /**
  * Updates order status or payment status (admin only)
@@ -426,13 +434,17 @@ export async function PATCH(request: NextRequest) {
     if (status) updateData.status = status;
     if (paymentStatus) updateData.paymentStatus = paymentStatus;
 
+    console.log('Updating order with:', { orderId, updateData });
+
     let updatedOrder;
     try {
       updatedOrder = await prisma.order.update({
         where: { id: orderId },
         data: updateData
       });
+      console.log('Order updated successfully:', updatedOrder);
     } catch (error) {
+      console.error('Prisma update error:', error);
       // Handle Prisma RecordNotFound error
       if (error.code === 'P2025') {
         return createErrorResponse(
@@ -453,11 +465,16 @@ export async function PATCH(request: NextRequest) {
 
   } catch (error) {
     console.error('Failed to update order:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     return createErrorResponse(
-      'Failed to update order',
+      `Failed to update order: ${error.message}`,
       ErrorCode.SERVER,
       500,
-      { suggestion: 'Please try again later' }
+      { suggestion: 'Please try again later', details: error.message }
     );
   }
 }

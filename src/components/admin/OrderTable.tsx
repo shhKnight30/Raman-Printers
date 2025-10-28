@@ -43,6 +43,8 @@ interface OrderTableProps {
   onUpdateOrderStatus: (orderId: string, status: string) => void;
   onUpdatePaymentStatus: (orderId: string, paymentStatus: string) => void;
   onDeleteFiles: (orderId: string) => void;
+  onViewOrder?: (orderId: string) => void;
+  onDownloadFiles?: (orderId: string) => void;
   isLoading?: boolean;
 }
 
@@ -60,6 +62,8 @@ const OrderTable: React.FC<OrderTableProps> = ({
   onUpdateOrderStatus,
   onUpdatePaymentStatus,
   onDeleteFiles,
+  onViewOrder,
+  onDownloadFiles,
   isLoading = false,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -237,6 +241,7 @@ const OrderTable: React.FC<OrderTableProps> = ({
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => onViewOrder?.(order.id)}
                             className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                           >
                             <Eye className="h-4 w-4" />
@@ -244,6 +249,7 @@ const OrderTable: React.FC<OrderTableProps> = ({
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => onDownloadFiles?.(order.id)}
                             className="text-green-600 hover:text-green-700 hover:bg-green-50"
                           >
                             <Download className="h-4 w-4" />
