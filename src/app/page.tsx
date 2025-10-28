@@ -58,7 +58,7 @@ export default function HomePage() {
         <TrackOrder />
       </div>
       <footer className="text-center py-6">
-        <p>&copy; 2025 AkPrints. All rights reserved.</p>
+        <p>&copy; 2025 Raman Prints. All rights reserved.</p>
         <p className="text-sm text-gray-400 mt-2">
           <a href="/admin/login" className="hover:text-blue-400 transition-colors">
             Admin Login

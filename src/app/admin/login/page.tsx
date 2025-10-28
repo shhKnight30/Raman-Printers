@@ -111,7 +111,7 @@ const AdminLogin = () => {
             Admin Portal
           </CardTitle>
           <p className="text-gray-600 mt-2">
-            Secure access to AkPrints management system
+            Secure access to Raman Prints management system
           </p>
         </CardHeader>
 
