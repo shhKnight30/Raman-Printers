@@ -32,7 +32,7 @@ const Navbar = () => {
           href="#home" 
           className="text-2xl font-bold text-gray-900 hover:text-blue-600 transition-colors"
         >
-          ARPrints
+          Raman Prints
         </Link>
         
         <ul className="flex items-center space-x-6">

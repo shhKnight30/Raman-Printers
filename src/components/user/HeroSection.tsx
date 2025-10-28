@@ -15,7 +15,7 @@ const HeroSection = () => {
     <section className="flex flex-col items-center justify-center h-[calc(100vh-80px)] text-center px-4">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-6xl md:text-7xl font-extrabold mb-6 text-gray-900">
-          AR Prints
+          Raman Prints
         </h1>
         <p className="text-xl md:text-2xl mb-12 text-gray-700 max-w-2xl mx-auto">
           Fast, Reliable, and High-Quality Printing Services at Your Fingertips
