@@ -146,7 +146,7 @@ const WhatsAppVerification: React.FC<WhatsAppVerificationProps> = ({
           className="w-full border-green-600 text-green-600 hover:bg-green-50"
         >
           <CheckCircle className="h-4 w-4 mr-2" />
-          I've Sent the Verification Message
+          I&apos;ve Sent the Verification Message
         </Button>
           </div>
 
