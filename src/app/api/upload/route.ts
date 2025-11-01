@@ -110,24 +110,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create user directory with error handling
-    const userDir = join(process.cwd(), UPLOAD_DIR, phone);
-    console.log('User directory:', userDir);
-    
-    try {
-      if (!existsSync(userDir)) {
-        console.log('Creating user directory');
-        await mkdir(userDir, { recursive: true });
-      }
-    } catch (error) {
-      console.error('Failed to create directory:', error);
-      return createErrorResponse(
-        'Failed to create upload directory',
-        ErrorCode.VALIDATION,
-        500,
-        { suggestion: 'Please try again later' }
-      );
-    }
+    // Runtime storage decision: Vercel Blob in prod, local disk in dev
+    const USE_BLOB = (process.env.STORAGE_DRIVER || '').toLowerCase() === 'blob' || !!process.env.VERCEL;
 
     const fileDescriptors: Array<{
       name: string;
@@ -137,111 +121,124 @@ export async function POST(request: NextRequest) {
       pages: number;
     }> = [];
 
-    for (const file of files) {
-      console.log(`Processing file: ${file.name}, type: ${file.type}, size: ${file.size}`);
-      
-      // Validate file name
-      if (!file.name || file.name.trim() === '') {
-        return createErrorResponse(
-          'File name is required',
-          ErrorCode.VALIDATION,
-          400,
-          { suggestion: 'Please ensure all files have valid names' }
-        );
-      }
+    if (!USE_BLOB) {
+      // LOCAL DISK (development)
+      const userDir = join(process.cwd(), UPLOAD_DIR, phone);
+      console.log('Using local storage:', userDir);
 
-      // Validate file extension
-      const extValidation = validateFileExtension(file.name);
-      if (!extValidation.valid) {
-        return createErrorResponse(
-          extValidation.error!,
-          ErrorCode.FILE_TYPE_INVALID,
-          400,
-          { suggestion: 'Please use supported file types: PDF, DOC, DOCX, JPG, PNG' }
-        );
-      }
-
-      // Validate file type (MIME type)
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        return createErrorResponse(
-          `File type ${file.type} not supported. Allowed types: PDF, images, Word, PowerPoint`,
-          ErrorCode.FILE_TYPE_INVALID,
-          400,
-          { suggestion: 'Please convert your file to a supported format' }
-        );
-      }
-
-      // Validate file size
-      const sizeValidation = validateFileSize(file.size, 10);
-      if (!sizeValidation.valid) {
-        return createErrorResponse(
-          `File ${file.name} ${sizeValidation.error}`,
-          ErrorCode.FILE_TOO_LARGE,
-          400,
-          { suggestion: 'Please compress or split large files' }
-        );
-      }
-
-      // Sanitize filename
-      const sanitizedName = sanitizeFilename(file.name);
-      const fileExtension = path.extname(sanitizedName);
-      const baseName = path.basename(sanitizedName, fileExtension);
-
-      // Handle duplicate filenames by adding suffix (1), (2), etc.
-      let finalFileName = sanitizedName;
-      let counter = 1;
-
-      while (existsSync(join(userDir, finalFileName))) {
-        finalFileName = `${baseName} (${counter})${fileExtension}`;
-        counter++;
-      }
-
-      const filePath = join(userDir, finalFileName);
-
-      console.log(`Saving file to: ${filePath}`);
-
-      // Write file with error handling and timeout
       try {
-        const bytes = await Promise.race([
-          file.arrayBuffer(),
-          uploadTimeout
-        ]);
-        await Promise.race([
-          writeFile(filePath, Buffer.from(bytes as ArrayBuffer)),
-          uploadTimeout
-        ]);
-        console.log(`File saved successfully: ${sanitizedName}`);
-      } catch (error: unknown) {
-        const err = error as Error;
-        console.error(`Failed to save file ${sanitizedName}:`, err);
-        
-        if (err.message === 'Upload timeout') {
-          return createErrorResponse(
-            `Upload timed out after ${UPLOAD_TIMEOUT / 1000} seconds`,
-            ErrorCode.VALIDATION,
-            408,
-            { suggestion: 'Please try with smaller files or check your connection' }
-          );
+        if (!existsSync(userDir)) {
+          await mkdir(userDir, { recursive: true });
         }
-        
-        return createErrorResponse(
-          `Failed to save file ${sanitizedName}`,
-          ErrorCode.VALIDATION,
-          500,
-          { suggestion: 'Please try again or contact support' }
-        );
+      } catch (error) {
+        console.error('Failed to create directory:', error);
+        return createErrorResponse('Failed to create upload directory', ErrorCode.VALIDATION, 500, { suggestion: 'Please try again later' });
       }
 
-      // Calculate pages (simplified: 1 page per file for now)
-      const pages = 1; // TODO: Implement actual page counting for PDFs
+      for (const file of files) {
+        console.log(`Processing file (local): ${file.name}`);
 
-      fileDescriptors.push({
-        name: finalFileName,
-        path: `/uploads/${phone}/${finalFileName}`,
-        size: file.size,
-        type: file.type,
-        pages
-      });
+        if (!file.name || file.name.trim() === '') {
+          return createErrorResponse('File name is required', ErrorCode.VALIDATION, 400, { suggestion: 'Please ensure all files have valid names' });
+        }
+        const extValidation = validateFileExtension(file.name);
+        if (!extValidation.valid) {
+          return createErrorResponse(extValidation.error!, ErrorCode.FILE_TYPE_INVALID, 400, { suggestion: 'Please use supported file types: PDF, DOC, DOCX, JPG, PNG' });
+        }
+        if (!ALLOWED_TYPES.includes(file.type)) {
+          return createErrorResponse(`File type ${file.type} not supported`, ErrorCode.FILE_TYPE_INVALID, 400, { suggestion: 'Please convert your file to a supported format' });
+        }
+        const sizeValidation = validateFileSize(file.size, 10);
+        if (!sizeValidation.valid) {
+          return createErrorResponse(`File ${file.name} ${sizeValidation.error}`, ErrorCode.FILE_TOO_LARGE, 400, { suggestion: 'Please compress or split large files' });
+        }
+
+        const sanitizedName = sanitizeFilename(file.name);
+        const fileExtension = path.extname(sanitizedName);
+        const baseName = path.basename(sanitizedName, fileExtension);
+        let finalFileName = sanitizedName;
+        let counter = 1;
+        while (existsSync(join(userDir, finalFileName))) {
+          finalFileName = `${baseName} (${counter})${fileExtension}`;
+          counter++;
+        }
+
+        const filePath = join(userDir, finalFileName);
+        try {
+          const bytes = await Promise.race([file.arrayBuffer(), uploadTimeout]);
+          await Promise.race([writeFile(filePath, Buffer.from(bytes as ArrayBuffer)), uploadTimeout]);
+          console.log(`File saved: ${finalFileName}`);
+        } catch (error: unknown) {
+          const err = error as Error;
+          if (err.message === 'Upload timeout') {
+            return createErrorResponse(`Upload timed out after ${UPLOAD_TIMEOUT / 1000} seconds`, ErrorCode.VALIDATION, 408, { suggestion: 'Please try with smaller files or check your connection' });
+          }
+          return createErrorResponse(`Failed to save file ${sanitizedName}`, ErrorCode.VALIDATION, 500, { suggestion: 'Please try again or contact support' });
+        }
+
+        fileDescriptors.push({
+          name: finalFileName,
+          path: `/uploads/${phone}/${finalFileName}`,
+          size: file.size,
+          type: file.type,
+          pages: 1,
+        });
+      }
+    } else {
+      // VERCEL BLOB (production)
+      console.log('Using Vercel Blob storage');
+      const { put } = await import('@vercel/blob');
+
+      for (const file of files) {
+        console.log(`Processing file (blob): ${file.name}`);
+
+        if (!file.name || file.name.trim() === '') {
+          return createErrorResponse('File name is required', ErrorCode.VALIDATION, 400, { suggestion: 'Please ensure all files have valid names' });
+        }
+        const extValidation = validateFileExtension(file.name);
+        if (!extValidation.valid) {
+          return createErrorResponse(extValidation.error!, ErrorCode.FILE_TYPE_INVALID, 400, { suggestion: 'Please use supported file types: PDF, DOC, DOCX, JPG, PNG' });
+        }
+        if (!ALLOWED_TYPES.includes(file.type)) {
+          return createErrorResponse(`File type ${file.type} not supported`, ErrorCode.FILE_TYPE_INVALID, 400, { suggestion: 'Please convert your file to a supported format' });
+        }
+        const sizeValidation = validateFileSize(file.size, 10);
+        if (!sizeValidation.valid) {
+          return createErrorResponse(`File ${file.name} ${sizeValidation.error}`, ErrorCode.FILE_TOO_LARGE, 400, { suggestion: 'Please compress or split large files' });
+        }
+
+        const sanitizedName = sanitizeFilename(file.name);
+        const blobKey = `${phone}/${sanitizedName}`;
+
+        try {
+          const bytes = await Promise.race([file.arrayBuffer(), uploadTimeout]);
+          const blobResult = await Promise.race([
+            put(blobKey, bytes as ArrayBuffer, {
+              access: 'public',
+              addRandomSuffix: true,
+              contentType: file.type || 'application/octet-stream',
+              token: process.env.BLOB_READ_WRITE_TOKEN,
+            }),
+            uploadTimeout,
+          ]) as { url: string };
+
+          console.log(`File uploaded to Blob: ${blobResult.url}`);
+          fileDescriptors.push({
+            name: sanitizedName,
+            path: blobResult.url,
+            size: file.size,
+            type: file.type,
+            pages: 1,
+          });
+        } catch (error: unknown) {
+          const err = error as Error;
+          if (err.message === 'Upload timeout') {
+            return createErrorResponse(`Upload timed out after ${UPLOAD_TIMEOUT / 1000} seconds`, ErrorCode.VALIDATION, 408, { suggestion: 'Please try with smaller files or check your connection' });
+          }
+          console.error('Blob upload error:', err);
+          return createErrorResponse('Failed to upload file to blob storage', ErrorCode.SERVER, 500, { suggestion: 'Please try again later' });
+        }
+      }
     }
 
     return NextResponse.json({
