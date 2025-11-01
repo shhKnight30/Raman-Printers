@@ -134,7 +134,12 @@ export default function OrderDetailsPage() {
 
     // Open each selected file in a new window for printing
     selectedFiles.forEach(fileName => {
-      const fileUrl = `/uploads/${order?.phone}/${fileName}`;
+      const file = order?.files.find(f => f.name === fileName);
+      if (!file) return;
+      
+      // Handle both Vercel Blob URLs and local paths
+      const fileUrl = file.path.startsWith('http') ? file.path : `/uploads/${order?.phone}/${fileName}`;
+      
       const printWindow = window.open(fileUrl, '_blank');
       if (printWindow) {
         printWindow.onload = () => {
@@ -154,10 +159,16 @@ export default function OrderDetailsPage() {
 
     // Download each selected file
     selectedFiles.forEach(fileName => {
-      const fileUrl = `/uploads/${order?.phone}/${fileName}`;
+      const file = order?.files.find(f => f.name === fileName);
+      if (!file) return;
+      
+      // Handle both Vercel Blob URLs and local paths
+      const fileUrl = file.path.startsWith('http') ? file.path : `/uploads/${order?.phone}/${fileName}`;
+      
       const link = document.createElement('a');
       link.href = fileUrl;
       link.download = fileName;
+      link.target = '_blank';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -167,7 +178,11 @@ export default function OrderDetailsPage() {
   };
 
   const handleViewFile = (fileName: string) => {
-    const fileUrl = `/uploads/${order?.phone}/${fileName}`;
+    const file = order?.files.find(f => f.name === fileName);
+    if (!file) return;
+    
+    // Handle both Vercel Blob URLs and local paths
+    const fileUrl = file.path.startsWith('http') ? file.path : `/uploads/${order?.phone}/${fileName}`;
     window.open(fileUrl, '_blank');
   };
 

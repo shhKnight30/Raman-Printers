@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Eye, Trash2, QrCode, CreditCard, CheckCircle, Copy, MessageCircle } from "lucide-react";
 import Image from "next/image";
-import { showSuccess, showLoading, updateToError } from "@/lib/toast";
+import { showSuccess, showLoading, updateToError, dismissToast } from "@/lib/toast";
 import { handleApiError, handleNetworkError, redirectToHomeAfterDelay } from "@/lib/apiErrorHandler";
 
 interface OrderData {
@@ -169,6 +169,9 @@ export default function PaymentPage() {
       const result = await response.json();
       setOrderId(result.orderId);
       setUserTokenId(result.tokenId);
+      
+      // Dismiss the loading toast
+      dismissToast(loadingToast);
       
       // Show token verification for NEW users only
       if (result.isNewUser) {
