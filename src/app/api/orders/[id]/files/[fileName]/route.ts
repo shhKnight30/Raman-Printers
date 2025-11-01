@@ -133,7 +133,7 @@ export async function DELETE(
       if (USE_BLOB && descriptor.path && /^https?:\/\//i.test(descriptor.path)) {
         try {
           const { del } = await import('@vercel/blob');
-          await del(descriptor.path, { token: process.env.BLOB_READ_WRITE_TOKEN });
+          await del(descriptor.path, { token: process.envRAMAN_BLOB_READ_WRITE_TOKEN });
           fileDeleted = true;
         } catch (blobErr) {
           console.warn('Failed to delete file from Vercel Blob:', blobErr);

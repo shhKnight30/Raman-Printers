@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
               access: 'public',
               addRandomSuffix: true,
               contentType: file.type || 'application/octet-stream',
-              token: process.env.BLOB_READ_WRITE_TOKEN,
+              token: process.envRAMAN_BLOB_READ_WRITE_TOKEN,
             }),
             uploadTimeout,
           ]) as { url: string };
