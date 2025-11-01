@@ -124,14 +124,27 @@ export async function DELETE(
       );
     }
 
-    // Remove file from filesystem with error handling
+    // Remove file from storage with error handling (local or Vercel Blob)
     let fileDeleted = false;
     try {
-      const filePath = join(process.cwd(), UPLOAD_DIR, order.phone, fileName);
-      await unlink(filePath);
-      fileDeleted = true;
+      const USE_BLOB = (process.env.STORAGE_DRIVER || '').toLowerCase() === 'blob' || !!process.env.VERCEL;
+      const descriptor = fileToRemove as unknown as { name: string; path?: string };
+
+      if (USE_BLOB && descriptor.path && /^https?:\/\//i.test(descriptor.path)) {
+        try {
+          const { del } = await import('@vercel/blob');
+          await del(descriptor.path, { token: process.env.BLOB_READ_WRITE_TOKEN });
+          fileDeleted = true;
+        } catch (blobErr) {
+          console.warn('Failed to delete file from Vercel Blob:', blobErr);
+        }
+      } else {
+        const filePath = join(process.cwd(), UPLOAD_DIR, order.phone, fileName);
+        await unlink(filePath);
+        fileDeleted = true;
+      }
     } catch (fileError) {
-      console.warn('Failed to delete file from filesystem:', fileError);
+      console.warn('Failed to delete file from storage:', fileError);
       // Continue with database update even if file deletion fails
     }
 
