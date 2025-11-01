@@ -2,6 +2,7 @@
  * @file src/components/ui/file-upload.tsx
  * @description Enhanced file upload component with drag-and-drop support and better UI.
  * Supports multiple file selection with preview and removal options.
+ * Fixed module resolution for Vercel build.
  */
 "use client";
 import { useState, useRef, useCallback } from "react";
