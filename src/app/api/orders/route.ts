@@ -25,7 +25,16 @@ const PRICE_PER_PAGE = 5; // ₹5 per page
 export async function POST(request: NextRequest) {
   try {
     // Parse request body with error handling
-    const parseResult = await parseRequestBody(request);
+    const parseResult = await parseRequestBody<{
+      name: string;
+      phone: string;
+      copies: number;
+      notes?: string;
+      pages: number;
+      files: Array<{ name: string; pages?: number }>;
+      isNewUser: boolean;
+      tokenId?: string;
+    }>(request);
     if (!parseResult.success) {
       return parseResult.error!;
     }
@@ -294,7 +303,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where clause for orders
-    const whereClause: any = {
+    const whereClause: Record<string, unknown> = {
       userId: user.id
     };
 
@@ -369,7 +378,10 @@ export async function PATCH(request: NextRequest) {
     const orderId = searchParams.get('id');
 
     // Parse request body with error handling
-    const parseResult = await parseRequestBody(request);
+    const parseResult = await parseRequestBody<{
+      status?: string;
+      paymentStatus?: string;
+    }>(request);
     if (!parseResult.success) {
       return parseResult.error!;
     }
@@ -430,7 +442,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Update order with error handling
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (status) updateData.status = status;
     if (paymentStatus) updateData.paymentStatus = paymentStatus;
 
@@ -446,7 +458,8 @@ export async function PATCH(request: NextRequest) {
     } catch (error) {
       console.error('Prisma update error:', error);
       // Handle Prisma RecordNotFound error
-      if (error.code === 'P2025') {
+      const prismaError = error as { code?: string };
+      if (prismaError.code === 'P2025') {
         return createErrorResponse(
           'Order not found',
           ErrorCode.ORDER_NOT_FOUND,
@@ -465,16 +478,17 @@ export async function PATCH(request: NextRequest) {
 
   } catch (error) {
     console.error('Failed to update order:', error);
+    const err = error as Error & { code?: string; stack?: string };
     console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
+      message: err.message,
+      code: err.code,
+      stack: err.stack
     });
     return createErrorResponse(
-      `Failed to update order: ${error.message}`,
+      `Failed to update order: ${err.message || 'Unknown error'}`,
       ErrorCode.SERVER,
       500,
-      { suggestion: 'Please try again later', details: error.message }
+      { suggestion: 'Please try again later', details: err.message }
     );
   }
 }

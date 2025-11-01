@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, Eye, EyeOff, Lock } from "lucide-react";
 import { showError, showLoading, updateToSuccess, updateToError } from "@/lib/toast";
+import { handleApiError, handleNetworkError, redirectToHomeAfterDelay } from "@/lib/apiErrorHandler";
 
 /**
  * AdminLogin component with enhanced security features
@@ -58,25 +59,48 @@ const AdminLogin = () => {
             window.location.href = "/admin/dashboard";
           }, 1000);
         } else {
-          throw new Error(data.error || 'Login failed');
+          // Handle non-success response
+          const errorData = await handleApiError(response, 'Login failed');
+          if (errorData) {
+            updateToError(loadingToast, errorData.error, errorData.suggestion);
+            setError(errorData.error);
+            
+            // Redirect if server error
+            if (errorData.shouldRedirect) {
+              redirectToHomeAfterDelay(errorData.error, errorData.suggestion);
+            }
+          }
         }
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Invalid passcode');
+        // Handle error response WITHOUT throwing
+        const errorData = await handleApiError(response, 'Invalid passcode');
+        if (errorData) {
+          updateToError(loadingToast, errorData.error, errorData.suggestion);
+          setError(errorData.error);
+          
+          const newAttempts = loginAttempts + 1;
+          setLoginAttempts(newAttempts);
+          
+          if (newAttempts >= 3) {
+            const lockMsg = "Too many failed attempts. Please try again later.";
+            updateToError(loadingToast, lockMsg);
+            setError(lockMsg);
+          }
+          
+          // Redirect if server error
+          if (errorData.shouldRedirect) {
+            redirectToHomeAfterDelay(errorData.error, errorData.suggestion);
+          }
+        }
       }
-    } catch (err: any) {
-      const errorMsg = err.message || 'Login failed. Please try again.';
-      updateToError(loadingToast, errorMsg);
-      setError(errorMsg);
+    } catch (err: unknown) {
+      // Network errors only
+      const networkError = handleNetworkError(err, 'Login failed. Please try again.');
+      updateToError(loadingToast, networkError.error, networkError.suggestion);
+      setError(networkError.error);
       
-      const newAttempts = loginAttempts + 1;
-      setLoginAttempts(newAttempts);
-      
-      if (newAttempts >= 3) {
-        const lockMsg = "Too many failed attempts. Please try again later.";
-        updateToError(loadingToast, lockMsg);
-        setError(lockMsg);
-      }
+      // Network errors - redirect to home after delay
+      redirectToHomeAfterDelay(networkError.error, networkError.suggestion);
     } finally {
       setIsLoading(false);
     }

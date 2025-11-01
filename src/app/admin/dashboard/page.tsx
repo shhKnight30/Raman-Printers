@@ -11,6 +11,8 @@ import OrderTable from "@/components/admin/OrderTable";
 import VerificationQueue from "@/components/admin/VerificationQueue";
 import AdminStats from "@/components/admin/AdminStats";
 import { LogOut, Settings, Download, RefreshCw } from "lucide-react";
+import { handleApiError, handleNetworkError } from "@/lib/apiErrorHandler";
+import { showError } from "@/lib/toast";
 
 /**
  * Order interface matching Prisma schema
@@ -122,7 +124,10 @@ const AdminDashboard = () => {
         const ordersData = await ordersResponse.json();
         setOrders(ordersData.data.orders);
       } else {
-        console.error('Failed to fetch orders:', ordersResponse.statusText);
+        const errorData = await handleApiError(ordersResponse, 'Failed to fetch orders');
+        if (errorData) {
+          showError(errorData.error, errorData.suggestion);
+        }
         setOrders([]);
       }
 
@@ -131,7 +136,10 @@ const AdminDashboard = () => {
         const usersData = await usersResponse.json();
         setUsers(usersData.data.users);
       } else {
-        console.error('Failed to fetch users:', usersResponse.statusText);
+        const errorData = await handleApiError(usersResponse, 'Failed to fetch users');
+        if (errorData) {
+          showError(errorData.error, errorData.suggestion);
+        }
         setUsers([]);
       }
 
@@ -150,7 +158,10 @@ const AdminDashboard = () => {
           recentOrders: statsData.data.recentOrders,
         });
       } else {
-        console.error('Failed to fetch stats:', statsResponse.statusText);
+        const errorData = await handleApiError(statsResponse, 'Failed to fetch statistics');
+        if (errorData) {
+          showError(errorData.error, errorData.suggestion);
+        }
         // Set default stats if API fails
         setStats({
           totalOrders: 0,
@@ -166,7 +177,10 @@ const AdminDashboard = () => {
       }
 
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      // Network errors or unexpected errors
+      const networkError = handleNetworkError(error, 'Failed to load dashboard data');
+      showError(networkError.error, networkError.suggestion);
+      
       // Set empty data on error
       setOrders([]);
       setUsers([]);
@@ -460,7 +474,7 @@ const AdminDashboard = () => {
   /**
    * Updates a setting value
    */
-  const updateSetting = (key: string, value: any) => {
+  const updateSetting = (key: string, value: string | number | boolean) => {
     setSettings(prev => ({
       ...prev,
       [key]: value

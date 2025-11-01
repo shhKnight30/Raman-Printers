@@ -3,9 +3,11 @@
  * @description Admin API endpoint for managing orders with filters and pagination.
  * Provides comprehensive order management for admin dashboard.
  */
+import { ErrorCode } from "@/lib/errorHandler";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createErrorResponse, parseRequestBody, validatePageNumber, handlePrismaError } from "@/lib/errorHandler";
+import { Prisma } from "@prisma/client";
 
 /**
  * GET /api/admin/orders - Fetch all orders with filters and pagination
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
     if (!pageValidation.valid) {
       return createErrorResponse(
         pageValidation.error!,
-        'INVALID_PAGE',
+        ErrorCode.INVALID_PAGE_NUMBER,
         400,
         { field: 'page', suggestion: 'Page must be a positive integer' }
       );
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
     if (status && !['PENDING', 'COMPLETED', 'CANCELLED'].includes(status)) {
       return createErrorResponse(
         'Invalid order status',
-        'INVALID_STATUS',
+        ErrorCode.INVALID_STATUS,
         400,
         { field: 'status', suggestion: 'Status must be PENDING, COMPLETED, or CANCELLED' }
       );
@@ -56,7 +58,7 @@ export async function GET(request: NextRequest) {
     if (paymentStatus && !['PENDING', 'PAID', 'VERIFIED'].includes(paymentStatus)) {
       return createErrorResponse(
         'Invalid payment status',
-        'INVALID_PAYMENT_STATUS',
+        ErrorCode.INVALID_PAYMENT_STATUS,
         400,
         { field: 'paymentStatus', suggestion: 'Payment status must be PENDING, PAID, or VERIFIED' }
       );
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest) {
     if (!validSortFields.includes(sortBy)) {
       return createErrorResponse(
         'Invalid sort field',
-        'INVALID_SORT_FIELD',
+        ErrorCode.INVALID_SORT_FIELD,
         400,
         { field: 'sortBy', suggestion: `Sort field must be one of: ${validSortFields.join(', ')}` }
       );
@@ -76,14 +78,14 @@ export async function GET(request: NextRequest) {
     if (!['asc', 'desc'].includes(sortOrder)) {
       return createErrorResponse(
         'Invalid sort order',
-        'INVALID_SORT_ORDER',
+        ErrorCode.INVALID_SORT_ORDER,
         400,
         { field: 'sortOrder', suggestion: 'Sort order must be asc or desc' }
       );
     }
 
     // Build where clause
-    const where: any = {};
+    const where: Prisma.OrderWhereInput = {};
     
     if (status) {
       where.status = status;
@@ -102,8 +104,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Build orderBy clause
-    const orderBy: any = {};
-    orderBy[sortBy] = sortOrder;
+    const orderBy: Record<string, 'asc' | 'desc'> = {};
+    orderBy[sortBy] = sortOrder as 'asc' | 'desc';
 
     // Calculate pagination
     const skip = (page - 1) * limit;
@@ -167,7 +169,7 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const parseResult = await parseRequestBody(request);
+    const parseResult = await parseRequestBody<{ orderIds: string[]; updates: Record<string, unknown> }>(request);
     if (!parseResult.success) {
       return parseResult.error!;
     }
@@ -178,7 +180,7 @@ export async function PATCH(request: NextRequest) {
     if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
       return createErrorResponse(
         'Order IDs are required',
-        'MISSING_ORDER_IDS',
+        ErrorCode.INVALID_ORDER_ID,
         400,
         { field: 'orderIds', suggestion: 'Provide an array of order IDs to update' }
       );
@@ -187,7 +189,7 @@ export async function PATCH(request: NextRequest) {
     if (!updates || typeof updates !== 'object') {
       return createErrorResponse(
         'Updates object is required',
-        'MISSING_UPDATES',
+        ErrorCode.MISSING_UPDATES,
         400,
         { field: 'updates', suggestion: 'Provide an object with status and/or paymentStatus' }
       );
@@ -198,7 +200,7 @@ export async function PATCH(request: NextRequest) {
       if (typeof orderId !== 'string' || orderId.length < 10) {
         return createErrorResponse(
           'Invalid order ID format',
-          'INVALID_ORDER_ID',
+          ErrorCode.INVALID_ORDER_ID,
           400,
           { field: 'orderIds', suggestion: 'All order IDs must be valid CUIDs' }
         );
@@ -206,27 +208,27 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Validate status values
-    if (updates.status && !['PENDING', 'COMPLETED', 'CANCELLED'].includes(updates.status)) {
+    if (updates.status && typeof updates.status === 'string' && !['PENDING', 'COMPLETED', 'CANCELLED'].includes(updates.status)) {
       return createErrorResponse(
         'Invalid order status',
-        'INVALID_STATUS',
+        ErrorCode.INVALID_STATUS,
         400,
         { field: 'updates.status', suggestion: 'Status must be PENDING, COMPLETED, or CANCELLED' }
       );
     }
 
     // Validate payment status values
-    if (updates.paymentStatus && !['PENDING', 'PAID', 'VERIFIED'].includes(updates.paymentStatus)) {
+    if (updates.paymentStatus && typeof updates.paymentStatus === 'string' && !['PENDING', 'PAID', 'VERIFIED'].includes(updates.paymentStatus)) {
       return createErrorResponse(
         'Invalid payment status',
-        'INVALID_PAYMENT_STATUS',
+        ErrorCode.INVALID_PAYMENT_STATUS,
         400,
         { field: 'updates.paymentStatus', suggestion: 'Payment status must be PENDING, PAID, or VERIFIED' }
       );
     }
 
     // Prepare update data
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (updates.status) updateData.status = updates.status;
     if (updates.paymentStatus) updateData.paymentStatus = updates.paymentStatus;
     updateData.updatedAt = new Date();

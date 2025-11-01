@@ -133,7 +133,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     e.preventDefault();
     setIsDragOver(false);
     handleFileSelect(e.dataTransfer.files);
-  }, [files]);
+  }, [handleFileSelect]);
 
   /**
    * Removes a file from the list

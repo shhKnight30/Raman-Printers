@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     if (files.length > 10) {
       return createErrorResponse(
         'Maximum 10 files allowed per upload',
-        ErrorCode.FILE_UPLOAD,
+        ErrorCode.VALIDATION,
         400,
         { suggestion: 'Please select up to 10 files' }
       );
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       console.error('Failed to create directory:', error);
       return createErrorResponse(
         'Failed to create upload directory',
-        ErrorCode.FILE_UPLOAD,
+        ErrorCode.VALIDATION,
         500,
         { suggestion: 'Please try again later' }
       );
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
       if (!file.name || file.name.trim() === '') {
         return createErrorResponse(
           'File name is required',
-          ErrorCode.FILE_UPLOAD,
+          ErrorCode.VALIDATION,
           400,
           { suggestion: 'Please ensure all files have valid names' }
         );
@@ -211,13 +211,14 @@ export async function POST(request: NextRequest) {
           uploadTimeout
         ]);
         console.log(`File saved successfully: ${sanitizedName}`);
-      } catch (error: any) {
-        console.error(`Failed to save file ${sanitizedName}:`, error);
+      } catch (error: unknown) {
+        const err = error as Error;
+        console.error(`Failed to save file ${sanitizedName}:`, err);
         
-        if (error.message === 'Upload timeout') {
+        if (err.message === 'Upload timeout') {
           return createErrorResponse(
             `Upload timed out after ${UPLOAD_TIMEOUT / 1000} seconds`,
-            ErrorCode.FILE_UPLOAD,
+            ErrorCode.VALIDATION,
             408,
             { suggestion: 'Please try with smaller files or check your connection' }
           );
@@ -225,7 +226,7 @@ export async function POST(request: NextRequest) {
         
         return createErrorResponse(
           `Failed to save file ${sanitizedName}`,
-          ErrorCode.FILE_UPLOAD,
+          ErrorCode.VALIDATION,
           500,
           { suggestion: 'Please try again or contact support' }
         );

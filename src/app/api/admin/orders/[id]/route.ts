@@ -13,10 +13,10 @@ import { createErrorResponse, ErrorCode, validateCuid, handlePrismaError } from 
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const orderId = params.id;
+    const { id: orderId } = await params;
 
     // Validate order ID format
     const orderIdValidation = validateCuid(orderId);

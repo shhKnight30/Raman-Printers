@@ -8,8 +8,9 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Download, Printer, Eye, FileText, Image, File } from "lucide-react";
+import { ArrowLeft, Download, Printer, Eye, FileText, Image as ImageIcon, File } from "lucide-react";
 import { showError, showSuccess } from "@/lib/toast";
+import { handleApiError, handleNetworkError } from "@/lib/apiErrorHandler";
 
 interface FileDescriptor {
   name: string;
@@ -55,11 +56,15 @@ export default function OrderDetailsPage() {
         const data = await response.json();
         setOrder(data.data.order);
       } else {
-        showError('Failed to load order details');
+        const errorData = await handleApiError(response, 'Failed to load order details');
+        if (errorData) {
+          showError(errorData.error, errorData.suggestion);
+        }
       }
     } catch (error) {
-      console.error('Error loading order:', error);
-      showError('Error loading order details');
+      // Network errors or unexpected errors
+      const networkError = handleNetworkError(error, 'Error loading order details');
+      showError(networkError.error, networkError.suggestion);
     } finally {
       setIsLoading(false);
     }
@@ -80,7 +85,7 @@ export default function OrderDetailsPage() {
       case 'jpeg':
       case 'png':
       case 'gif':
-        return <Image className="h-5 w-5 text-green-500" />;
+        return <ImageIcon className="h-5 w-5 text-green-500" aria-label="Image file" />;
       case 'docx':
       case 'doc':
         return <FileText className="h-5 w-5 text-blue-500" />;

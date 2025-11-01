@@ -5,7 +5,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createErrorResponse, parseRequestBody, validatePageNumber, handlePrismaError } from "@/lib/errorHandler";
+import { createErrorResponse, parseRequestBody, validatePageNumber, handlePrismaError, ErrorCode } from "@/lib/errorHandler";
 
 /**
  * GET /api/admin/users - Fetch all users with verification status
@@ -34,9 +34,9 @@ export async function GET(request: NextRequest) {
     if (!pageValidation.valid) {
       return createErrorResponse(
         pageValidation.error!,
-        'INVALID_PAGE',
+        ErrorCode.INVALID_PAGE_NUMBER,
         400,
-        { field: 'page', suggestion: 'Page must be a positive integer' }
+        { field: 'page', suggestion: 'Page must be a positive integer' } 
       );
     }
 
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       } else {
         return createErrorResponse(
           'Invalid verified parameter',
-          'INVALID_VERIFIED',
+          ErrorCode.VALIDATION,
           400,
           { field: 'verified', suggestion: 'Verified must be true or false' }
         );
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     if (!validSortFields.includes(sortBy)) {
       return createErrorResponse(
         'Invalid sort field',
-        'INVALID_SORT_FIELD',
+        ErrorCode.INVALID_SORT_FIELD,
         400,
         { field: 'sortBy', suggestion: `Sort field must be one of: ${validSortFields.join(', ')}` }
       );
@@ -71,14 +71,14 @@ export async function GET(request: NextRequest) {
     if (!['asc', 'desc'].includes(sortOrder)) {
       return createErrorResponse(
         'Invalid sort order',
-        'INVALID_SORT_ORDER',
+        ErrorCode.INVALID_SORT_ORDER,
         400,
         { field: 'sortOrder', suggestion: 'Sort order must be asc or desc' }
       );
     }
 
     // Build where clause
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     
     if (verifiedFilter !== undefined) {
       where.isVerified = verifiedFilter;
@@ -92,8 +92,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Build orderBy clause
-    const orderBy: any = {};
-    orderBy[sortBy] = sortOrder;
+    const orderBy: Record<string, 'asc' | 'desc'> = {};
+    orderBy[sortBy] = sortOrder as 'asc' | 'desc';
 
     // Calculate pagination
     const skip = (page - 1) * limit;
@@ -161,7 +161,7 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const parseResult = await parseRequestBody(request);
+    const parseResult = await parseRequestBody<{ userIds: string[]; isVerified: boolean }>(request);
     if (!parseResult.success) {
       return parseResult.error!;
     }
@@ -172,7 +172,7 @@ export async function PATCH(request: NextRequest) {
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
       return createErrorResponse(
         'User IDs are required',
-        'MISSING_USER_IDS',
+        ErrorCode.MISSING_FIELDS,
         400,
         { field: 'userIds', suggestion: 'Provide an array of user IDs to update' }
       );
@@ -181,7 +181,7 @@ export async function PATCH(request: NextRequest) {
     if (typeof isVerified !== 'boolean') {
       return createErrorResponse(
         'Verification status is required',
-        'MISSING_VERIFICATION_STATUS',
+        ErrorCode.MISSING_FIELDS,
         400,
         { field: 'isVerified', suggestion: 'Provide a boolean value for verification status' }
       );
@@ -192,7 +192,7 @@ export async function PATCH(request: NextRequest) {
       if (typeof userId !== 'string' || userId.length < 10) {
         return createErrorResponse(
           'Invalid user ID format',
-          'INVALID_USER_ID',
+          ErrorCode.INVALID_ORDER_ID,
           400,
           { field: 'userIds', suggestion: 'All user IDs must be valid CUIDs' }
         );

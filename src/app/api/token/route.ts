@@ -20,7 +20,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     // Parse request body with error handling
-    const parseResult = await parseRequestBody(request);
+    const parseResult = await parseRequestBody<{ phone: string }>(request);
     if (!parseResult.success) {
       return parseResult.error!;
     }
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       return handlePrismaError(error);
     }
 
-    let tokenId: string;
+    let tokenId: string = '';
     let isNewUser = false;
 
     if (existingUser) {
@@ -70,7 +70,8 @@ export async function POST(request: NextRequest) {
           break; // Success, exit retry loop
         } catch (error) {
           attempts++;
-          if (error.code === 'P2002' && attempts < maxAttempts) {
+          const prismaError = error as { code?: string };
+          if (prismaError.code === 'P2002' && attempts < maxAttempts) {
             // Unique constraint violation, retry with new token
             console.warn(`Token collision detected, retrying... (attempt ${attempts})`);
             continue;
@@ -107,7 +108,8 @@ export async function POST(request: NextRequest) {
           break; // Success, exit retry loop
         } catch (error) {
           attempts++;
-          if (error.code === 'P2002' && attempts < maxAttempts) {
+          const prismaError = error as { code?: string };
+          if (prismaError.code === 'P2002' && attempts < maxAttempts) {
             // Unique constraint violation, retry with new token
             console.warn(`Token collision detected, retrying... (attempt ${attempts})`);
             continue;

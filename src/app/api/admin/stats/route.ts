@@ -3,9 +3,9 @@
  * @description Admin API endpoint for dashboard statistics.
  * Provides comprehensive statistics for admin dashboard.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createErrorResponse, handlePrismaError } from "@/lib/errorHandler";
+import { handlePrismaError } from "@/lib/errorHandler";
 
 /**
  * GET /api/admin/stats - Fetch dashboard statistics
@@ -15,7 +15,7 @@ import { createErrorResponse, handlePrismaError } from "@/lib/errorHandler";
  * - User verification statistics
  * - Recent activity metrics
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Calculate date ranges
     const now = new Date();

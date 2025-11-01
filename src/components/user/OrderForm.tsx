@@ -14,7 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import FileUpload from "@/components/ui/file-upload";
 import WhatsAppVerification from "@/components/user/WhatsAppVerification";
-import { showError, showSuccess, showLoading, updateToSuccess, updateToError, ToastMessages } from "@/lib/toast";
+import { showError, showLoading, updateToSuccess, updateToError } from "@/lib/toast";
+import { handleApiError, handleNetworkError, redirectToHomeAfterDelay } from "@/lib/apiErrorHandler";
 
 /**
  * Price per page configuration
@@ -156,18 +157,21 @@ const OrderForm = () => {
       console.log('Upload response status:', uploadResponse.status);
 
       if (!uploadResponse.ok) {
-        const uploadError = await uploadResponse.json();
-        console.error('Upload error:', uploadError);
+        const errorData = await handleApiError(uploadResponse, 'File upload failed');
         
-        // Show specific error message from API
-        const errorMessage = uploadError.error || 'File upload failed';
-        const suggestion = uploadError.suggestion ? `\n\n${uploadError.suggestion}` : '';
-        
-        updateToError(loadingToast, errorMessage, suggestion);
-        updateFormState({ 
-          error: errorMessage,
-          isLoading: false 
-        });
+        if (errorData) {
+          const suggestion = errorData.suggestion ? `\n\n${errorData.suggestion}` : '';
+          updateToError(loadingToast, errorData.error, suggestion);
+          updateFormState({ 
+            error: errorData.error,
+            isLoading: false 
+          });
+          
+          // Redirect to home if server error
+          if (errorData.shouldRedirect) {
+            redirectToHomeAfterDelay(errorData.error, errorData.suggestion);
+          }
+        }
         return;
       }
 
@@ -197,12 +201,16 @@ const OrderForm = () => {
       }, 1000);
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'File upload failed';
-      updateToError(loadingToast, errorMessage);
+      // Network errors or unexpected errors
+      const networkError = handleNetworkError(error, 'File upload failed');
+      updateToError(loadingToast, networkError.error, networkError.suggestion);
       updateFormState({ 
-        error: errorMessage,
+        error: networkError.error,
         isLoading: false 
       });
+      
+      // Network errors - redirect to home after delay
+      redirectToHomeAfterDelay(networkError.error, networkError.suggestion);
     }
   };
 

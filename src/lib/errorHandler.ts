@@ -37,7 +37,22 @@ export enum ErrorCode {
   MISSING_FIELDS = 'MISSING_FIELDS',
   INVALID_PAGE_NUMBER = 'INVALID_PAGE_NUMBER',
   ORDER_CANNOT_CANCEL = 'ORDER_CANNOT_CANCEL',
-  PAYMENT_REQUIRED = 'PAYMENT_REQUIRED'
+  PAYMENT_REQUIRED = 'PAYMENT_REQUIRED',
+  MISSING_UPDATES = 'MISSING_UPDATES',
+  INVALID_ORDER_ID = 'INVALID_ORDER_ID',
+  INVALID_STATUS = 'INVALID_STATUS',
+  INVALID_PAYMENT_STATUS = 'INVALID_PAYMENT_STATUS',
+  INVALID_SORT_FIELD = 'INVALID_SORT_FIELD',
+  INVALID_SORT_ORDER = 'INVALID_SORT_ORDER',
+  INVALID_REFERENCE = 'INVALID_REFERENCE',
+  DATABASE_OPERATION_FAILED = 'DATABASE_OPERATION_FAILED',
+  MISSING_REQUIRED_FIELDS = 'MISSING_REQUIRED_FIELDS',
+  FILE_SIZE_EXCEEDS_LIMIT = 'FILE_SIZE_EXCEEDS_LIMIT',
+  VALIDATION = 'VALIDATION',
+  NOT_FOUND = 'NOT_FOUND',
+  SERVER = 'SERVER',
+  DATABASE = 'DATABASE',
+  AUTH = 'AUTH'
 }
 
 /**
@@ -49,7 +64,7 @@ export interface ErrorResponse {
   code: string;
   field?: string;
   suggestion?: string;
-  details?: any;
+  details?: unknown;
 }
 
 /**
@@ -62,7 +77,7 @@ export function createErrorResponse(
   options?: {
     field?: string;
     suggestion?: string;
-    details?: any;
+    details?: unknown;
   }
 ): NextResponse<ErrorResponse> {
   return NextResponse.json(
@@ -121,7 +136,7 @@ export function validateTokenId(tokenId: string): { valid: boolean; error?: stri
 /**
  * Validates page number
  */
-export function validatePageNumber(page: any): { valid: boolean; value?: number; error?: string } {
+export function validatePageNumber(page: unknown): { valid: boolean; value?: number; error?: string } {
   if (page === undefined || page === null) {
     return { valid: false, error: 'Page number is required' };
   }
@@ -180,7 +195,7 @@ export function validateFileExtension(filename: string): { valid: boolean; error
 /**
  * Safely parses request body with error handling
  */
-export async function parseRequestBody<T = any>(request: Request): Promise<{
+export async function parseRequestBody<T = unknown>(request: Request): Promise<{
   success: boolean;
   data?: T;
   error?: NextResponse<ErrorResponse>;
@@ -188,7 +203,7 @@ export async function parseRequestBody<T = any>(request: Request): Promise<{
   try {
     const body = await request.json();
     return { success: true, data: body };
-  } catch (error) {
+  } catch {
     return {
       success: false,
       error: createErrorResponse(
@@ -212,7 +227,7 @@ export async function parseFormData(request: Request): Promise<{
   try {
     const formData = await request.formData();
     return { success: true, data: formData };
-  } catch (error) {
+  } catch {
     return {
       success: false,
       error: createErrorResponse(
@@ -228,12 +243,14 @@ export async function parseFormData(request: Request): Promise<{
 /**
  * Handles Prisma errors and converts to user-friendly messages
  */
-export function handlePrismaError(error: any): NextResponse<ErrorResponse> {
+export function handlePrismaError(error: unknown): NextResponse<ErrorResponse> {
   console.error('Prisma error:', error);
   
+  const prismaError = error as { code?: string; meta?: { target?: string[] } };
+  
   // Unique constraint violation
-  if (error.code === 'P2002') {
-    const field = error.meta?.target?.[0] || 'field';
+  if (prismaError.code === 'P2002') {
+    const field = prismaError.meta?.target?.[0] || 'field';
     return createErrorResponse(
       `This ${field} is already in use`,
       field === 'phone' ? ErrorCode.PHONE_EXISTS : ErrorCode.DUPLICATE_FILE,
@@ -247,7 +264,7 @@ export function handlePrismaError(error: any): NextResponse<ErrorResponse> {
   }
   
   // Record not found
-  if (error.code === 'P2025') {
+  if (prismaError.code === 'P2025') {
     return createErrorResponse(
       'Record not found',
       ErrorCode.ORDER_NOT_FOUND,
@@ -256,10 +273,10 @@ export function handlePrismaError(error: any): NextResponse<ErrorResponse> {
   }
   
   // Foreign key constraint
-  if (error.code === 'P2003') {
+  if (prismaError.code === 'P2003') {
     return createErrorResponse(
       'Invalid reference',
-      ErrorCode.VALIDATION,
+      ErrorCode.INVALID_REFERENCE,
       400
     );
   }
@@ -267,7 +284,7 @@ export function handlePrismaError(error: any): NextResponse<ErrorResponse> {
   // Generic database error
   return createErrorResponse(
     'Database operation failed',
-    ErrorCode.DATABASE,
+    ErrorCode.DATABASE_OPERATION_FAILED,
     500,
     { suggestion: 'Please try again later' }
   );
@@ -277,7 +294,7 @@ export function handlePrismaError(error: any): NextResponse<ErrorResponse> {
  * Validates required fields in an object
  */
 export function validateRequiredFields(
-  data: Record<string, any>, 
+  data: Record<string, unknown>, 
   requiredFields: string[]
 ): { valid: boolean; missingFields?: string[]; error?: NextResponse<ErrorResponse> } {
   const missingFields = requiredFields.filter(field => {

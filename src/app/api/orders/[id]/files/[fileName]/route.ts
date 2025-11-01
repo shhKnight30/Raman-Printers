@@ -4,6 +4,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
 import { 
@@ -24,10 +25,10 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || 'public/uploads';
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; fileName: string } }
+  { params }: { params: Promise<{ id: string; fileName: string }> }
 ) {
   try {
-    const { id: orderId, fileName } = params;
+    const { id: orderId, fileName } = await params;
 
     // Validate required parameters
     if (!orderId || !fileName) {
@@ -94,10 +95,16 @@ export async function DELETE(
     }
 
     // Parse files array safely
-    let files: any[] = [];
+    interface FileDescriptor {
+      name: string;
+      pages?: number;
+    }
+    let files: FileDescriptor[] = [];
     try {
-      files = Array.isArray(order.files) ? order.files : [];
-    } catch (parseError) {
+      if (Array.isArray(order.files)) {
+        files = order.files as unknown as FileDescriptor[];
+      }
+    } catch {
       return createErrorResponse(
         'Invalid file data in order',
         ErrorCode.VALIDATION,
@@ -106,7 +113,7 @@ export async function DELETE(
       );
     }
 
-    const fileToRemove = files.find((f: any) => f.name === fileName);
+    const fileToRemove = files.find((f) => f.name === fileName);
 
     if (!fileToRemove) {
       return createErrorResponse(
@@ -129,7 +136,7 @@ export async function DELETE(
     }
 
     // Remove file from order
-    const updatedFiles = files.filter((f: any) => f.name !== fileName);
+    const updatedFiles = files.filter((f) => f.name !== fileName);
 
     // If no files left, cancel the order
     if (updatedFiles.length === 0) {
@@ -154,7 +161,7 @@ export async function DELETE(
     }
 
     // Recalculate total amount based on remaining files
-    const totalPages = updatedFiles.reduce((sum: number, f: any) => sum + (f.pages || 1), 0);
+    const totalPages = updatedFiles.reduce((sum, f) => sum + (f.pages || 1), 0);
     const totalAmount = totalPages * order.copies * 5; // ₹5 per page
 
     // Update order with remaining files and recalculated amount
@@ -163,7 +170,7 @@ export async function DELETE(
       updatedOrder = await prisma.order.update({
         where: { id: orderId },
         data: {
-          files: updatedFiles,
+          files: updatedFiles as unknown as Prisma.InputJsonValue,
           pages: totalPages,
           totalAmount
         }

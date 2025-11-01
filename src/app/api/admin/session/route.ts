@@ -21,7 +21,7 @@ const SESSION_COOKIE_NAME = 'admin-session';
 export async function POST(request: NextRequest) {
   try {
     // Parse request body with error handling
-    const parseResult = await parseRequestBody(request);
+    const parseResult = await parseRequestBody<{ passcode: string }>(request);
     if (!parseResult.success) {
       return parseResult.error!;
     }
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     // Set HTTP-only cookie with error handling
     try {
-      const cookieStore = cookies();
+      const cookieStore = await cookies();
       cookieStore.set(SESSION_COOKIE_NAME, 'authenticated', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.delete(SESSION_COOKIE_NAME);
 
     return NextResponse.json({

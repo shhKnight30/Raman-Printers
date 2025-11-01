@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Eye, Trash2, QrCode, CreditCard, CheckCircle, Copy, MessageCircle } from "lucide-react";
 import Image from "next/image";
-import { showError, showSuccess } from "@/lib/toast";
+import { showSuccess, showLoading, updateToError } from "@/lib/toast";
+import { handleApiError, handleNetworkError, redirectToHomeAfterDelay } from "@/lib/apiErrorHandler";
 
 interface OrderData {
   name: string;
@@ -125,6 +126,8 @@ export default function PaymentPage() {
     if (!orderData) return;
 
     setIsLoading(true);
+    const loadingToast = showLoading("Creating order...", "Please wait");
+    
     try {
       const orderPayload = {
         name: orderData.name,
@@ -143,11 +146,26 @@ export default function PaymentPage() {
         body: JSON.stringify(orderPayload)
       });
 
+      // Handle errors gracefully WITHOUT throwing
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Order creation failed');
+        const errorData = await handleApiError(response, 'Order creation failed');
+        
+        if (errorData) {
+          const suggestion = errorData.suggestion ? `\n\n${errorData.suggestion}` : '';
+          updateToError(loadingToast, errorData.error, suggestion);
+          
+          // Redirect to home if server error
+          if (errorData.shouldRedirect) {
+            redirectToHomeAfterDelay(errorData.error, errorData.suggestion);
+          }
+        }
+        
+        // Exit cleanly - don't throw, just return
+        setIsLoading(false);
+        return;
       }
 
+      // Success case
       const result = await response.json();
       setOrderId(result.orderId);
       setUserTokenId(result.tokenId);
@@ -167,9 +185,13 @@ export default function PaymentPage() {
       setShowPayLater(false);
 
     } catch (error) {
+      // Only network errors or unexpected errors reach here
       console.error('Order creation error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Order creation failed';
-      showError(errorMessage);
+      const networkError = handleNetworkError(error, 'Order creation failed');
+      updateToError(loadingToast, networkError.error, networkError.suggestion);
+      
+      // Network errors - redirect to home after delay
+      redirectToHomeAfterDelay(networkError.error, networkError.suggestion);
     } finally {
       setIsLoading(false);
     }
