@@ -76,7 +76,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
    * Handles file selection from input
    * @param selectedFiles - Files selected from input
    */
-  const handleFileSelect = (selectedFiles: FileList | null) => {
+  const handleFileSelect = useCallback((selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
 
     const newFiles: File[] = [];
@@ -108,7 +108,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     if (newFiles.length > 0) {
       onFilesChange([...files, ...newFiles]);
     }
-  };
+  }, [files, onFilesChange, maxFiles, maxSizeInMB]);
 
   /**
    * Handles drag over event
@@ -234,7 +234,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={() => removeFile(index)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  aria-label="Remove file"
+                  className="text-red-600 hover:text-red-800"
                 >
                   <X className="h-4 w-4" />
                 </Button>

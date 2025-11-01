@@ -18,7 +18,6 @@ import {
 } from '@/lib/errorHandler';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'public/uploads';
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB total per upload
 const UPLOAD_TIMEOUT = parseInt(process.env.UPLOAD_TIMEOUT || '60') * 1000; // 60 seconds default
 const ALLOWED_TYPES = [
@@ -31,7 +30,6 @@ const ALLOWED_TYPES = [
   'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 ];
-const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
 
 /**
  * Handles multipart file upload
